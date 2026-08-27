@@ -1,0 +1,49 @@
+! =====================================================================
+! ANSYS APDL PARAMETRIC THERMAL SIMULATION MACRO FOR CLIMATESHELTER AI
+! =====================================================================
+! Description: Steady-State 3D Thermal Conduction, Convection & Radiation
+! Author: ClimateShelter AI Engineering Team
+
+/TITLE, Parametric Thermal Analysis of Climate-Aware Shelter
+/PREP7
+
+! Element Type Selection: 3D 8-Node Thermal Solid
+ET,1,SOLID70
+
+! Material Properties (CSEB / Composite Wall)
+MP,KXX,1,0.8500          ! Thermal Conductivity [W/m-K]
+MP,DENS,1,1800.0        ! Density [kg/m3]
+MP,C,1,880.0            ! Specific Heat [J/kg-K]
+
+! Geometrical Parameter Definitions
+L = 6.00                ! Shelter Length [m]
+W = 4.00                ! Shelter Width [m]
+H = 3.00                ! Shelter Height [m]
+WALL_THICK = 0.350      ! Wall Thickness [m]
+ROOF_THICK = 0.250      ! Roof Thickness [m]
+
+! Solid Model Generation
+BLOCK, 0, L, 0, W, 0, H
+ESIZE, 0.20
+VMESH, ALL
+
+! Environmental Boundary Conditions
+SF, ALL, CONV, 25.0, -12.0     ! Outdoor Convection h=25 W/m2K, T_ambient=-12C
+SFA, 6, HFLUX, 552.5           ! Absorbed Solar Radiation Flux on Roof Surface [W/m2]
+
+! Solution Configuration
+/SOLU
+ANTYPE, STATIC
+SOLVE
+FINISH
+
+! Post-Processing & Nodal Temperature Extraction
+/POST1
+*GET, T_MEAN, NODE, 0, ITEM, TEMP, MEAN
+*GET, T_MAX, NODE, 0, ITEM, TEMP, MAX
+*GET, T_MIN, NODE, 0, ITEM, TEMP, MIN
+
+*OPEN, thermal_output, txt
+*VWRITE, T_MEAN, T_MAX, T_MIN
+(3F12.4)
+*CLOSE

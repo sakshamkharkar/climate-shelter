@@ -1,0 +1,32 @@
+{
+  "mae": 1.3071,
+  "rmse": 1.8463,
+  "r2": 0.9659,
+  "model_name": "Gradient Boosting Regressor",
+  "dataset_size": 1200,
+  "training_samples": 840,
+  "validation_samples": 180,
+  "test_samples": 180,
+  "feature_count": 17,
+  "features": [
+    "material",
+    "thermal_conductivity",
+    "density",
+    "specific_heat",
+    "wall_thickness",
+    "roof_thickness",
+    "length",
+    "width",
+    "height",
+    "orientation",
+    "insulation_thickness",
+    "window_to_wall_ratio",
+    "outdoor_temperature",
+    "humidity",
+    "solar_radiation",
+    "wind_speed",
+    "pressure"
+  ],
+  "target": "interior_temperature",
+  "training_date": "2026-08-27 04:39:18 UTC"
+}
