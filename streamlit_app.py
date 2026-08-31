@@ -168,7 +168,7 @@ st.markdown("""
 
 st.title("Shelter Weather Analyzer & 3D Thermodynamics")
 
-tab1, tab2 = st.tabs(["1. Map & Weather Data", "2. 3D Design & Thermodynamics"])
+tab1, tab2, tab3 = st.tabs(["1. Map & Weather Data", "2. 3D Design & Thermodynamics", "3. 3D Building Simulation"])
 
 # --- TAB 1: Map & Weather ---
 with tab1:
@@ -336,6 +336,7 @@ with tab1:
 
 # --- TAB 2: 3D Design & Thermodynamics ---
 with tab2:
+    rooms_data = []
     if "weather_data" not in st.session_state:
         st.warning("Please analyze weather data in Tab 1 first.")
     else:
@@ -355,11 +356,14 @@ with tab2:
             show_heat = c_v5.toggle("🔥 Show Heat Flow", value=True)
         
         with col_design:
-            st.subheader("Target Environment")
-            optimal_temp = st.slider("Target Indoor Temp (°C)", 10.0, 30.0, 21.0)
-            
             st.subheader("Structure Shape")
             build_mode = st.radio("Building Type", ["Single Shape", "Compound Structure (Base + Roof)", "Multi-Room (Modular)"])
+            
+            if build_mode != "Multi-Room (Modular)":
+                st.subheader("Target Environment")
+                optimal_temp = st.slider("Target Indoor Temp (°C)", 10.0, 30.0, 21.0)
+            else:
+                optimal_temp = 21.0  # Will be dynamically calculated as volume-weighted average
             
             area = 0
             roof_area = 0
@@ -370,7 +374,7 @@ with tab2:
             
             # --- 3D Drawing Helpers ---
             wd = st.session_state.weather_data
-            def add_solid(fig, x, y, z, color='#3498db', opacity=0.4, force=False, is_ground=False):
+            def add_solid(fig, x, y, z, color='#3498db', opacity=0.4, force=False, is_ground=False, name=None, hovertext=None):
                 if show_solid or force:
                     if show_heat and not is_ground:
                         # Heat-map visualization: Temperature gradient based on height and weather
@@ -391,10 +395,10 @@ with tab2:
                         fig.add_trace(go.Mesh3d(
                             x=x, y=y, z=z, 
                             intensity=intensity, colorscale=cscale, 
-                            opacity=0.85, alphahull=0
+                            opacity=0.85, alphahull=0, name=name, hoverinfo='text' if hovertext else None, hovertext=hovertext
                         ))
                     else:
-                        fig.add_trace(go.Mesh3d(x=x, y=y, z=z, color=color, opacity=opacity, alphahull=0))
+                        fig.add_trace(go.Mesh3d(x=x, y=y, z=z, color=color, opacity=opacity, alphahull=0, name=name, hoverinfo='text' if hovertext else None, hovertext=hovertext))
                     
             def apply_transform(x_list, y_list, x_offset, y_offset, rot_deg):
                 rad = np.radians(rot_deg)
@@ -407,15 +411,15 @@ with tab2:
                     y_new.append(ry + y_offset)
                 return x_new, y_new
 
-            def draw_box(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0):
+            def draw_box(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0, name=None, hovertext=None):
                 x = [0, l, l, 0, 0, 0, l, l, 0, 0, l, l, 0, 0, l, l]
                 y = [0, 0, w, w, 0, 0, 0, w, w, 0, 0, 0, w, w, w, w]
                 x, y = apply_transform(x, y, x_offset, y_offset, rot_deg)
                 z = [z_offset, z_offset, z_offset, z_offset, z_offset, h+z_offset, h+z_offset, h+z_offset, h+z_offset, h+z_offset, h+z_offset, z_offset, z_offset, h+z_offset, h+z_offset, z_offset]
                 fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='lines', line=dict(color='darkblue', width=4)))
-                add_solid(fig, x, y, z)
+                add_solid(fig, x, y, z, name=name, hovertext=hovertext)
             
-            def draw_cylinder(fig, r, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0):
+            def draw_cylinder(fig, r, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0, name=None, hovertext=None):
                 u = np.linspace(0, 2 * np.pi, 30)
                 x_c = list(r * np.cos(u) + r)
                 y_c = list(r * np.sin(u) + r)
@@ -429,9 +433,9 @@ with tab2:
                 x_solid = x_c + x_c
                 y_solid = y_c + y_c
                 z_solid = z_base + z_top
-                add_solid(fig, x_solid, y_solid, z_solid)
+                add_solid(fig, x_solid, y_solid, z_solid, name=name, hovertext=hovertext)
             
-            def draw_dome(fig, r, z_offset=0, x_offset=0, y_offset=0, rot_deg=0):
+            def draw_dome(fig, r, z_offset=0, x_offset=0, y_offset=0, rot_deg=0, name=None, hovertext=None):
                 u = np.linspace(0, 2 * np.pi, 30)
                 v = np.linspace(0, np.pi / 2, 15)
                 x = list(r * np.outer(np.cos(u), np.sin(v)).flatten() + r)
@@ -439,23 +443,23 @@ with tab2:
                 x, y = apply_transform(x, y, x_offset, y_offset, rot_deg)
                 z = list(r * np.outer(np.ones(np.size(u)), np.cos(v)).flatten() + z_offset)
                 fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='lines', line=dict(color='darkblue', width=1), opacity=0.3))
-                add_solid(fig, x, y, z)
+                add_solid(fig, x, y, z, name=name, hovertext=hovertext)
                 
-            def draw_a_frame(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0):
+            def draw_a_frame(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0, name=None, hovertext=None):
                 x = [0, l, l, 0, 0, 0, l, l, 0, l]
                 y = [0, 0, w, w, 0, w/2, w/2, 0, w, w/2]
                 x, y = apply_transform(x, y, x_offset, y_offset, rot_deg)
                 z = [z_offset, z_offset, z_offset, z_offset, z_offset, h+z_offset, h+z_offset, z_offset, z_offset, h+z_offset]
                 fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='lines', line=dict(color='darkblue', width=4)))
-                add_solid(fig, x, y, z)
+                add_solid(fig, x, y, z, name=name, hovertext=hovertext)
                 
-            def draw_pyramid_roof(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0):
+            def draw_pyramid_roof(fig, l, w, h, z_offset=0, x_offset=0, y_offset=0, rot_deg=0, name=None, hovertext=None):
                 x = [0, l, l, 0, 0, l/2, l, l/2, 0, l/2, l]
                 y = [0, 0, w, w, 0, w/2, 0, w/2, w, w/2, w]
                 x, y = apply_transform(x, y, x_offset, y_offset, rot_deg)
                 z = [z_offset, z_offset, z_offset, z_offset, z_offset, h+z_offset, z_offset, h+z_offset, z_offset, h+z_offset, z_offset]
                 fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='lines', line=dict(color='darkblue', width=4)))
-                add_solid(fig, x, y, z)
+                add_solid(fig, x, y, z, name=name, hovertext=hovertext)
 
             # --- SHAPE LOGIC ---
             if build_mode == "Single Shape":
@@ -553,17 +557,42 @@ with tab2:
                         
             elif build_mode == "Multi-Room (Modular)":
                 num_rooms = st.slider("Number of Rooms", 1, 10, 2)
+                
+                # Safe initialization for hovertext
+                wall_material = st.session_state.get('wall_mat_input', 'Brick (Solid)')
+                roof_material = st.session_state.get('roof_mat_input', 'Wood (Softwood)')
+
+                
+                if st.button("✨ AI: Auto-Arrange Rooms for Optimal Temp"):
+                    outdoor_temp = wd["avg_temp"]
+                    is_hot = outdoor_temp > 21.0
+                    
+                    if is_hot:
+                        for i in range(num_rooms):
+                            st.session_state[f"x_{i}"] = float(i * 6.0)
+                            st.session_state[f"y_{i}"] = 0.0
+                            st.session_state[f"rot_{i}"] = 0
+                    else:
+                        import math
+                        cols = math.ceil(math.sqrt(num_rooms))
+                        for i in range(num_rooms):
+                            st.session_state[f"x_{i}"] = float((i % cols) * 5.0)
+                            st.session_state[f"y_{i}"] = float((i // cols) * 5.0)
+                            st.session_state[f"rot_{i}"] = 0
+                    
+                    st.rerun()
                 wall_area = 0
                 roof_surface_area = 0
                 roof_area = 0
                 floor_area = 0
                 volume = 0
-                
-                rooms_data = []
+                sum_temp_vol = 0
+                
                 
                 for i in range(num_rooms):
                     st.markdown(f"**Room {i+1}**")
                     r_shape = st.selectbox(f"Shape - Room {i+1}", ["Box", "Dome", "Triangular (A-Frame)", "Cylinder"], key=f"shape_{i}")
+                    r_temp = st.slider(f"Target Indoor Temp - Room {i+1} (°C)", 10.0, 30.0, 21.0, key=f"target_temp_{i}")
                     
                     c_x, c_y, c_rot = st.columns([2, 2, 1])
                     r_x = c_x.number_input("X Position (m)", -50.0, 50.0, float(i * 5.0), key=f"x_{i}")
@@ -571,6 +600,7 @@ with tab2:
                     r_rot = c_rot.selectbox("Rotate (°)", [0, 90, 180, 270], key=f"rot_{i}")
                     
                     r_l, r_w, r_h = 0, 0, 0
+                    r_radius = 0.0
                     room_wall_area = 0
                     r_surface = 0
                     r_roof_area = 0
@@ -585,7 +615,7 @@ with tab2:
                         r_surface = r_l * r_w
                         r_roof_area = r_l * r_w
                         r_volume = r_l * r_w * r_h
-                        draw_box(fig, r_l, r_w, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot)
+                        draw_box(fig, r_l, r_w, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot, name=f'Room {i+1}', hovertext=f'<b>Room {i+1}</b><br>Wall: {wall_material}<br>Roof: {roof_material}')
                         
                     elif r_shape == "Dome":
                         r_radius = st.number_input("Radius (m)", 2.0, 15.0, 5.0, key=f"rad_{i}")
@@ -596,7 +626,7 @@ with tab2:
                         r_surface = 2 * np.pi * r_radius**2
                         r_roof_area = np.pi * r_radius**2
                         r_volume = (2/3) * np.pi * r_radius**3
-                        draw_dome(fig, r_radius, x_offset=r_x, y_offset=r_y, rot_deg=r_rot)
+                        draw_dome(fig, r_radius, x_offset=r_x, y_offset=r_y, rot_deg=r_rot, name=f'Room {i+1}', hovertext=f'<b>Room {i+1}</b><br>Wall: {wall_material}<br>Roof: {roof_material}')
                         
                     elif r_shape == "Triangular (A-Frame)":
                         c_l, c_w, c_h = st.columns(3)
@@ -608,7 +638,7 @@ with tab2:
                         r_surface = 2 * r_l * slant
                         r_roof_area = r_l * r_w
                         r_volume = 0.5 * r_w * r_h * r_l
-                        draw_a_frame(fig, r_l, r_w, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot)
+                        draw_a_frame(fig, r_l, r_w, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot, name=f'Room {i+1}', hovertext=f'<b>Room {i+1}</b><br>Wall: {wall_material}<br>Roof: {roof_material}')
                         
                     elif r_shape == "Cylinder":
                         c_r, c_h = st.columns(2)
@@ -620,7 +650,7 @@ with tab2:
                         r_surface = np.pi * r_radius**2
                         r_roof_area = np.pi * r_radius**2
                         r_volume = np.pi * r_radius**2 * r_h
-                        draw_cylinder(fig, r_radius, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot)
+                        draw_cylinder(fig, r_radius, r_h, x_offset=r_x, y_offset=r_y, rot_deg=r_rot, name=f'Room {i+1}', hovertext=f'<b>Room {i+1}</b><br>Wall: {wall_material}<br>Roof: {roof_material}')
                     
                     # Bounding box collision for exact shared wall calculation
                     for j in range(i):
@@ -641,13 +671,19 @@ with tab2:
                                 shared_area = min(shared_area * 0.2, 4.0)
                             wall_area -= shared_area * 2
                             
-                    rooms_data.append({'x': r_x, 'y': r_y, 'l': r_l, 'w': r_w, 'h': r_h, 'shape': r_shape})
+                    rooms_data.append({'x': r_x, 'y': r_y, 'l': r_l, 'w': r_w, 'h': r_h, 'shape': r_shape, 'temp': r_temp, 'wall': room_wall_area, 'roof': r_surface, 'roof_proj': r_roof_area, 'vol': r_volume, 'rot': r_rot, 'rad': r_radius, 'wall_mat': wall_material, 'roof_mat': roof_material})
                         
                     wall_area += room_wall_area
                     roof_surface_area += r_surface
                     roof_area += r_roof_area
                     floor_area += r_l * r_w
                     volume += r_volume
+                    sum_temp_vol += (r_volume * r_temp)
+
+                if volume > 0:
+                    optimal_temp = sum_temp_vol / volume
+                else:
+                    optimal_temp = 21.0
 
             # --- DOORS & WINDOWS ---
             st.subheader("Doors & Windows")
@@ -689,7 +725,8 @@ with tab2:
             st.subheader("Ökobaudat Materials & Envelope")
             wall_material = st.selectbox("Primary Wall Material", list(MATERIALS.keys()), index=list(MATERIALS.keys()).index("Brick (Solid)"))
             roof_material = st.selectbox("Primary Roof Material", list(MATERIALS.keys()), index=list(MATERIALS.keys()).index("Wood (Softwood)"))
-            wall_thickness = st.slider("Wall/Roof Thickness (m)", 0.05, 0.5, 0.2, step=0.01, help="Heat Conduction Formula: Q = (k × A × ΔT) / thickness")
+            wall_thickness = st.slider("Wall Thickness (m)", 0.05, 0.5, 0.2, step=0.01, help="Heat Conduction Formula: Q = (k × A × ΔT) / thickness")
+            roof_thickness = st.slider("Roof Thickness (m)", 0.05, 0.5, 0.2, step=0.01, help="Heat Conduction Formula: Q = (k × A × ΔT) / thickness")
             
             u_wall = MATERIALS[wall_material]["u_value"]
             u_roof = MATERIALS[roof_material]["u_value"]
@@ -838,8 +875,8 @@ with tab2:
         
         # 1. Base Assumptions
         air_heat_capacity = volume * 1.2 * 1000 # J/K
-        k_wall = u_wall * 0.2
-        k_roof = u_roof * 0.2
+        k_wall = u_wall
+        k_roof = u_roof
         
         wind_m_s = wd.get("avg_wind", 10.0) * (1000/3600)
         h_out = 5.7 + 3.8 * wind_m_s  
@@ -848,7 +885,7 @@ with tab2:
         # Calculate full U-value including boundary convective layers (R_total = R_in + R_cond + R_out)
         # Note: The pure conduction part (R_cond = thickness/k) is shown in the UI slider.
         true_u_wall = 1 / ((1/h_in) + (wall_thickness / k_wall) + (1/h_out)) if k_wall > 0 else 0
-        true_u_roof = 1 / ((1/h_in) + (wall_thickness / k_roof) + (1/h_out)) if k_roof > 0 else 0
+        true_u_roof = 1 / ((1/h_in) + (roof_thickness / k_roof) + (1/h_out)) if k_roof > 0 else 0
         
         U_A_conductive = (true_u_wall * solid_wall_area) + (true_u_roof * roof_surface_area) + (u_window * total_window_area) + (u_door * total_door_area)
         
@@ -910,10 +947,31 @@ with tab2:
         daytime_dampening = 1.0 - np.exp(-12.0 / max(tau_hours, 0.1))
         t_in_max = t_in_avg + (t_in_max_undamped - t_in_avg) * daytime_dampening
         
-        t1, t2, t3 = st.columns(3)
-        t1.metric("Avg Indoor Temp", f"{t_in_avg:.1f} °C", f"{t_in_avg - wd['avg_temp']:+.1f} °C vs Outdoor Avg", delta_color="off")
-        t2.metric("Extreme Max Indoor", f"{t_in_max:.1f} °C", f"{t_in_max - wd['ext_max']:+.1f} °C vs Outdoor Max", delta_color="inverse")
-        t3.metric("Extreme Min (Night) Temp", f"{t_in_min:.1f} °C", f"{t_in_min - wd['ext_min']:+.1f} °C vs Outdoor Min", delta_color="normal")
+        if build_mode == "Multi-Room (Modular)":
+            st.subheader("Room-by-Room Baseline Performance (No AC)")
+            st.write(f"Using selected materials: **{wall_material} walls** and **{roof_material} roof**")
+            for idx, rm in enumerate(rooms_data):
+                if rm['vol'] <= 0: continue
+                vol_ratio = rm['vol'] / max(volume, 1e-6)
+                wall_ratio = rm['wall'] / max(wall_area, 1e-6)
+                r_win = total_window_area * wall_ratio
+                r_door = total_door_area * wall_ratio
+                r_vent = U_A_ventilation * vol_ratio
+                r_internal = Q_internal * vol_ratio
+                r_UA_conductive = (true_u_wall * rm['wall']) + (true_u_roof * rm['roof']) + (u_window * r_win) + (u_door * r_door)
+                r_UA = r_UA_conductive + r_vent
+                if r_UA == 0: r_UA = 0.1
+                r_Q_solar_roof = solar_radiance_w_m2 * rm['roof_proj'] * abs_roof
+                r_Q_solar_win = solar_radiance_w_m2 * (r_win * 0.5) * SHGC
+                r_Q_solar_avg = r_Q_solar_roof + r_Q_solar_win
+                r_t_in_avg = wd["avg_temp"] + (r_Q_solar_avg + r_internal) / r_UA
+                status = "✅ Spot on!" if abs(r_t_in_avg - rm['temp']) < 1.5 else ("🔥 Too Hot" if r_t_in_avg > rm['temp'] else "❄️ Too Cold")
+                st.info(f"**Room {idx+1} (Target: {rm['temp']:.1f}°C)** | Current Materials naturally achieve **{r_t_in_avg:.1f}°C** -> {status}")
+        else:
+            t1, t2, t3 = st.columns(3)
+            t1.metric("Avg Indoor Temp", f"{t_in_avg:.1f} °C", f"{t_in_avg - wd['avg_temp']:+.1f} °C vs Outdoor Avg", delta_color="off")
+            t2.metric("Extreme Max Indoor", f"{t_in_max:.1f} °C", f"{t_in_max - wd['ext_max']:+.1f} °C vs Outdoor Max", delta_color="inverse")
+            t3.metric("Extreme Min (Night) Temp", f"{t_in_min:.1f} °C", f"{t_in_min - wd['ext_min']:+.1f} °C vs Outdoor Min", delta_color="normal")
         
         st.caption(f"**Physics Diagnostics:** Thermal Time Constant (τ) = **{tau_hours:.1f} hours**. Natural Ventilation Heat Transfer = **{U_A_ventilation:,.0f} W/K** (driven by {wd.get('avg_wind', 0):.1f} km/h local wind).")
 
@@ -953,31 +1011,81 @@ with tab2:
             """)
 
         st.markdown("---")
-        st.header(f"⚡ Active HVAC Energy Analysis (Target: {optimal_temp}°C)")
-        
-        delta_t = abs(wd["avg_temp"] - optimal_temp)
-        heat_loss_w = U_A * delta_t
-        heat_loss_kwh_yr = (heat_loss_w * 24 * 365) / 1000
-        solar_gain_kwh_yr = (Q_solar_avg * 24 * 365) / 1000
-        
-        col_res1, col_res2, col_res3 = st.columns(3)
-        col_res1.metric("Total Heat Loss/Transfer", f"{heat_loss_kwh_yr:,.0f} kWh/yr")
-        col_res2.metric("Solar Heat Gain", f"{solar_gain_kwh_yr:,.0f} kWh/yr")
-        
-        if wd["avg_temp"] < optimal_temp:
-            net_energy = max(0, heat_loss_kwh_yr - solar_gain_kwh_yr)
-            col_res3.metric(f"Heating Req. (to reach {optimal_temp}°C)", f"{net_energy:,.0f} kWh/yr")
-            best_orient = "South-Facing (maximize winter sun)"
-        else:
-            net_energy = heat_loss_kwh_yr + solar_gain_kwh_yr
-            col_res3.metric(f"Cooling Req. (to reach {optimal_temp}°C)", f"{net_energy:,.0f} kWh/yr")
-            best_orient = "North-Facing (minimize direct sun)"
+
+        if build_mode == 'Multi-Room (Modular)':
+            st.header('⚡ Active HVAC Energy Analysis (Room-by-Room)')
+            total_heating = 0
+            total_cooling = 0
+            total_loss = 0
+            total_solar = 0
             
+            for idx, rm in enumerate(rooms_data):
+                if rm['vol'] <= 0: continue
+                # Apportion
+                vol_ratio = rm['vol'] / max(volume, 1e-6)
+                wall_ratio = rm['wall'] / max(wall_area, 1e-6)
+                r_win = total_window_area * wall_ratio
+                r_door = total_door_area * wall_ratio
+                r_vent = U_A_ventilation * vol_ratio
+                
+                # Room UA
+                r_UA = (true_u_wall * rm['wall']) + (true_u_roof * rm['roof']) + (u_window * r_win) + (u_door * r_door) + r_vent
+                
+                # Heat loss & solar gain for room
+                r_delta_t = abs(wd['avg_temp'] - rm['temp'])
+                r_heat_loss_kwh = (r_UA * r_delta_t * 24 * 365) / 1000
+                total_loss += r_heat_loss_kwh
+                
+                r_Q_solar_roof = solar_radiance_w_m2 * rm['roof_proj'] * abs_roof
+                r_Q_solar_win = solar_radiance_w_m2 * (r_win * 0.5) * SHGC
+                r_solar_gain_kwh = ((r_Q_solar_roof + r_Q_solar_win) * 24 * 365) / 1000
+                total_solar += r_solar_gain_kwh
+                
+                if wd['avg_temp'] < rm['temp']:
+                    r_net = max(0, r_heat_loss_kwh - r_solar_gain_kwh)
+                    total_heating += r_net
+                    r_mode = 'Heating'
+                else:
+                    r_net = r_heat_loss_kwh + r_solar_gain_kwh
+                    total_cooling += r_net
+                    r_mode = 'Cooling'
+                    
+                st.info(f'**Room {idx+1} (Target: {rm["temp"]:.1f}°C):** Requires **{r_net:,.0f} kWh/yr** of {r_mode}.')
+                
+            c1, c2, c3 = st.columns(3)
+            c1.metric('Total Heat Loss/Transfer', f'{total_loss:,.0f} kWh/yr')
+            c2.metric('Total Solar Gain', f'{total_solar:,.0f} kWh/yr')
+            c3.metric('Total Net HVAC Load', f'{total_heating + total_cooling:,.0f} kWh/yr')
+            best_orient = 'South-Facing (maximize winter sun)' if total_heating > total_cooling else 'North-Facing (minimize direct sun)'
+            
+        else:
+            st.header(f"⚡ Active HVAC Energy Analysis (Target: {optimal_temp}°C)")
+            delta_t = abs(wd["avg_temp"] - optimal_temp)
+            heat_loss_w = U_A * delta_t
+            heat_loss_kwh_yr = (heat_loss_w * 24 * 365) / 1000
+            solar_gain_kwh_yr = (Q_solar_avg * 24 * 365) / 1000
+            
+            col_res1, col_res2, col_res3 = st.columns(3)
+            col_res1.metric("Total Heat Loss/Transfer", f"{heat_loss_kwh_yr:,.0f} kWh/yr")
+            col_res2.metric("Solar Heat Gain", f"{solar_gain_kwh_yr:,.0f} kWh/yr")
+            
+            if wd["avg_temp"] < optimal_temp:
+                net_energy = max(0, heat_loss_kwh_yr - solar_gain_kwh_yr)
+                col_res3.metric(f"Heating Req. (to reach {optimal_temp}°C)", f"{net_energy:,.0f} kWh/yr")
+                best_orient = "South-Facing (maximize winter sun)"
+            else:
+                net_energy = heat_loss_kwh_yr + solar_gain_kwh_yr
+                col_res3.metric(f"Cooling Req. (to reach {optimal_temp}°C)", f"{net_energy:,.0f} kWh/yr")
+                best_orient = "North-Facing (minimize direct sun)"
+                
+        delta_t = abs(wd['avg_temp'] - optimal_temp)
+        if build_mode == 'Multi-Room (Modular)':
+            solar_gain_kwh_yr = total_solar
         st.subheader(f"Ökobaudat Wall Material Comparison (Keeping {roof_material} Roof)")
         comp_data = []
         
         for m_name, m_props in MATERIALS.items():
-            m_k_wall = m_props["u_value"] * 0.2
+            m_k_wall = m_props["u_value"]
             m_true_u_wall = 1 / ((1/h_in) + (wall_thickness / m_k_wall) + (1/h_out)) if m_k_wall > 0 else 0
             m_U_A = (m_true_u_wall * solid_wall_area) + (true_u_roof * roof_surface_area) + (u_window * total_window_area) + (u_door * total_door_area) + U_A_ventilation
             
@@ -1053,11 +1161,11 @@ with tab2:
         
         for w_name, w_props in MATERIALS.items():
             for r_name, r_props in MATERIALS.items():
-                opt_k_wall = w_props["u_value"] * 0.2
-                opt_k_roof = r_props["u_value"] * 0.2
+                opt_k_wall = w_props["u_value"]
+                opt_k_roof = r_props["u_value"]
                 
                 opt_u_wall = 1 / ((1/h_in) + (wall_thickness / opt_k_wall) + (1/h_out)) if opt_k_wall > 0 else 0
-                opt_u_roof = 1 / ((1/h_in) + (wall_thickness / opt_k_roof) + (1/h_out)) if opt_k_roof > 0 else 0
+                opt_u_roof = 1 / ((1/h_in) + (roof_thickness / opt_k_roof) + (1/h_out)) if opt_k_roof > 0 else 0
                 
                 opt_U_A = (opt_u_wall * solid_wall_area) + (opt_u_roof * roof_surface_area) + (u_window * total_window_area) + (u_door * total_door_area) + U_A_ventilation
                 
@@ -1090,47 +1198,630 @@ with tab2:
         By using this combination, your shelter will require **{best_opt_energy:,.0f} kWh/yr** of active HVAC energy to perfectly maintain {optimal_temp}°C year-round.
         """)
         
+
+# ==========================================
+# END OF TAB 2
+# ==========================================
+with tab3:
+    if "weather_data" not in st.session_state:
+        st.warning("Please analyze weather data in Tab 1 first.")
+    else:
+        # --- MOST OPTIMAL PASSIVE MATERIAL (ROOM-BY-ROOM) ---
         st.markdown("---")
-        st.header("🔬 Export to Ansys PyFluent (Enterprise CFD)")
-        st.write("While the visualizations above use potential-flow estimates, you can run a **Certified CFD Analysis** by executing this generated `PyFluent` script in an environment with an active Ansys license.")
+        st.header("🏆 Most Optimal Passive Material Strategy")
+
+        # Auto-fill rooms_data for Single Room mode so the 3D Engine works universally
+        if not rooms_data and build_mode != "Multi-Room (Modular)":
+            rooms_data = [{
+                'x': 0.0, 'y': 0.0, 
+                'l': float(locals().get('b_length', 5.0)), 
+                'w': float(locals().get('b_width', 5.0)), 
+                'h': float(locals().get('b_height', 3.0)),
+                'shape': 'Box' if locals().get('b_shape', 'Rectangular Box') == 'Rectangular Box' else ('Dome' if locals().get('b_shape') == 'Dome' else 'Cylinder'),
+                'rad': float(locals().get('b_radius', 5.0)),
+                'rot': 0,
+                'wall_mat': locals().get('wall_material', 'Brick (Solid)'),
+                'roof_mat': locals().get('roof_material', 'Wood (Softwood)'),
+                'temp': locals().get('optimal_temp', 21.0),
+                'vol': locals().get('volume', 75.0),
+                'wall': locals().get('wall_area', 60.0),
+                'roof': locals().get('roof_area', 25.0),
+                'roof_proj': locals().get('roof_area', 25.0)
+            }]
+
         
-        pyfluent_script = f'''import ansys.fluent.core as pyfluent
-import numpy as np
+        def find_best_passive_materials(
+            target_t, w_area, r_surface, r_proj, vol_r,
+            wall_thickness, roof_thickness,
+            h_in, h_out,
+            wall_area, volume,
+            total_window_area, total_door_area,
+            U_A_ventilation, Q_internal,
+            u_window, u_door,
+            wd, MATERIALS
+        ):
+            best_wall, best_roof, best_score = "", "", float('inf')
+            best_t_avg = 0
 
-# 1. Connect to local Ansys Fluent session (Requires licensed installation)
-session = pyfluent.launch_fluent(precision="double", processor_count=4, mode="solver")
+            vol_ratio = vol_r / max(volume, 1e-6)
+            wall_ratio = w_area / max(wall_area, 1e-6)
+            r_win = total_window_area * wall_ratio
+            r_door = total_door_area * wall_ratio
+            r_vent = U_A_ventilation * vol_ratio
+            r_internal = Q_internal * vol_ratio
 
-# 2. Create simplified geometry massing
-# Total internal volume: {volume:.1f} m³
-# Total floor area: {floor_area:.1f} m²
-session.setup.models.energy.enabled = True
-session.setup.models.viscous.model = "k-epsilon"
+            for wn, wp in MATERIALS.items():
+                kw = wp["u_value"]
+                if kw <= 0: continue
 
-# 3. Define Boundary Conditions based on live Streamlit inputs
-outdoor_temp_k = {wd.get('avg_temp', 25) + 273.15:.2f}  # Local API Temp
-wind_speed_m_s = {wd.get('avg_wind', 4) * (1000/3600):.2f}  # Local API Wind Speed
+                for rn, rp in MATERIALS.items():
+                    kr = rp["u_value"]
+                    if kr <= 0: continue
 
-session.setup.boundary_conditions.velocity_inlet['inlet'].vmag = wind_speed_m_s
-session.setup.boundary_conditions.velocity_inlet['inlet'].t0 = outdoor_temp_k
+                    uw = 1 / ((1 / h_in) + (wall_thickness / kw) + (1 / h_out))
+                    ur = 1 / ((1 / h_in) + (roof_thickness / kr) + (1 / h_out))
 
-# 4. Define target parameters
-target_temp_k = {optimal_temp + 273.15:.2f}
-print(f"Running simulation to evaluate heat loss/gain against target {{target_temp_k}} K")
+                    UA = (uw * w_area) + (ur * r_surface) + (u_window * r_win) + (u_door * r_door) + r_vent
+                    if UA <= 0: UA = 0.1
 
-# 5. Initialize and Solve
-session.solution.initialization.hybrid_initialize()
-session.solution.run_calculation.iter_count = 150
-session.solution.run_calculation.calculate()
+                    avg_solar_w = wd.get("avg_solar_mj", 15) * (1_000_000 / 86400)
+                    sol = (avg_solar_w * r_proj * rp["absorptance"]) + (avg_solar_w * r_win * 0.5 * 0.6)
 
-# 6. Post-processing & Results
-print("CFD Solve Complete. Ready for PyDPF extraction.")
-session.exit()
-'''
-        st.code(pyfluent_script, language="python")
+                    t_avg = wd["avg_temp"] + (sol + r_internal) / UA
 
-        st.markdown("---")
-        st.header("⚡ Next-Gen Smart Building Optimizer")
-        st.caption("A standalone interactive engineering prototype to rapidly evaluate shape, airflow, and heat maps.")
-        with open(r"c:\Users\SAKSHAM\.antigravity\smart_optimizer.html", "r", encoding="utf-8") as f:
-            smart_html = f.read()
-        components.html(smart_html, height=900, scrolling=True)
+                    # Minimize active HVAC required to maintain target_t
+                    if wd["avg_temp"] > target_t:
+                        score = UA * (wd["avg_temp"] - target_t) + sol + r_internal
+                    else:
+                        score = max(0, UA * (target_t - wd["avg_temp"]) - sol - r_internal)
+                    if score < best_score:
+                        best_score = score
+                        best_wall = wn
+                        best_roof = rn
+                        best_t_avg = t_avg
+
+            return best_wall, best_roof, best_t_avg
+
+        if True:
+            st.subheader("Room-by-Room Material Recommendations")
+            for idx, rm in enumerate(rooms_data):
+                if rm['vol'] > 0:
+                    bw, br, bt = find_best_passive_materials(
+                        rm["temp"], rm["wall"], rm["roof"], rm["roof_proj"], rm["vol"],
+                        wall_thickness, roof_thickness,
+                        h_in, h_out,
+                        wall_area, volume,
+                        total_window_area, total_door_area,
+                        U_A_ventilation, Q_internal,
+                        u_window, u_door,
+                        wd, MATERIALS
+                    )
+                    st.success(f"**Room {idx+1} (Target: {rm['temp']:.1f}°C):** Use **{bw}** for walls and **{br}** for roof.")
+                    st.caption(f"↳ This combination naturally balances heat to achieve **{bt:.1f}°C**.")
+            
+            import json
+            import streamlit.components.v1 as components
+            
+            three_data = []
+            for idx, rm in enumerate(rooms_data):
+                if rm['vol'] <= 0: continue
+                bw, br, bt = find_best_passive_materials(
+                    rm["temp"], rm["wall"], rm["roof"], rm["roof_proj"], rm["vol"],
+                    wall_thickness, roof_thickness, h_in, h_out, wall_area, volume,
+                    total_window_area, total_door_area, U_A_ventilation, Q_internal,
+                    u_window, u_door, wd, MATERIALS
+                )
+                
+                # Estimate windows and doors for this room proportionally
+                room_vol_ratio = rm['vol'] / max(volume, 1e-6)
+                room_win_area = total_window_area * room_vol_ratio
+                room_door_area = total_door_area * room_vol_ratio
+                
+                num_windows = max(0, int(round(room_win_area / 1.8)))
+                num_doors = max(0, int(round(room_door_area / 2.1)))
+                
+                three_data.append({
+                    "id": idx + 1,
+                    "name": f"Room {idx+1}",
+                    "x": rm['x'], "y": rm['y'], "l": rm['l'], "w": rm['w'], "h": rm['h'],
+                    "shape": rm['shape'], "rad": rm.get('rad', 5), "rot": rm.get('rot', 0),
+                    "wall_mat": rm['wall_mat'],
+                    "roof_mat": rm['roof_mat'],
+                    "ai_wall": bw,
+                    "ai_roof": br,
+                    "target_temp": rm['temp'],
+                    "passive_temp": bt,
+                    "num_windows": num_windows,
+                    "num_doors": num_doors
+                })
+                
+            three_data_json = json.dumps(three_data)
+
+            import json
+            m_colors = {
+                "Brick (Solid)": 0x9c4a2e,
+                "Concrete (Standard)": 0x7c7f82,
+                "Wood (Softwood)": 0xc79a5b,
+                "Glass (Single Pane)": 0xadd8e6,
+                "Glass (Double Pane)": 0x8fd0e8,
+                "Steel (Standard)": 0x6c7a89,
+                "EPS Insulation": 0xe9e6d8,
+                "Straw Bale": 0xdaa520,
+                "Adobe/Earth": 0xa0522d,
+                "Stone (Granite/Limestone)": 0x696969
+            }
+            mats_js = {}
+            for m_name, m_props in MATERIALS.items():
+                mats_js[m_name] = {
+                    "name": m_name,
+                    "color": m_colors.get(m_name, 0x888888),
+                    "u_value": m_props["u_value"],
+                    "density": m_props["density"],
+                    "cost": m_props.get("cost_per_kg", 0),
+                    "gwp": m_props["gwp"]
+                }
+            materials_json = json.dumps(mats_js)
+            
+            # Using replacement on a raw string to avoid f-string {} brace escaping issues with CSS/JS
+            html_code = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Floor Plan & Material Dashboard</title>
+<style>
+  :root{
+    --ink:#0b1b23;
+    --panel:#0f2530;
+    --panel-line:#1e4a5c;
+    --grid:#132f3b;
+    --cyan:#5fd4d0;
+    --amber:#e8a94f;
+    --paper:#eef4f2;
+    --paper-dim:#9db4b9;
+    --danger:#e0684f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;color:var(--paper);}
+  #scene{position:absolute;inset:0;}
+
+  /* Top strip */
+  #topbar{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;
+    background:linear-gradient(180deg,rgba(11,27,35,.95),rgba(11,27,35,0));
+    pointer-events:none;
+  }
+  #topbar .title{
+    pointer-events:auto;
+    font-size:15px;letter-spacing:.02em;color:var(--paper);
+  }
+  #topbar .title b{color:var(--cyan);font-weight:600;}
+  #topbar .title small{display:block;color:var(--paper-dim);font-size:11.5px;margin-top:2px;}
+
+  .viewtabs{pointer-events:auto;display:flex;gap:2px;background:var(--panel);border:1px solid var(--panel-line);border-radius:3px;overflow:hidden;}
+  .viewtabs button{
+    background:transparent;border:none;color:var(--paper-dim);
+    padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit;
+    border-right:1px solid var(--panel-line);
+  }
+  .viewtabs button:last-child{border-right:none;}
+  .viewtabs button:hover{color:var(--paper);background:rgba(95,212,208,.08);}
+  .viewtabs button.active{color:var(--ink);background:var(--cyan);}
+
+  /* Left: room legend / arrangement list */
+  #roomlist{
+    position:absolute;left:18px;top:78px;bottom:18px;width:230px;
+    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
+    padding:14px;overflow-y:auto;
+  }
+  #roomlist h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);font-weight:600;text-transform:uppercase;}
+  .room-row{
+    display:flex;align-items:center;gap:9px;padding:8px 6px;border-radius:3px;cursor:pointer;
+    border-left:3px solid transparent;margin-bottom:2px;
+  }
+  .room-row:hover{background:rgba(95,212,208,.08);}
+  .room-row.active{background:rgba(95,212,208,.14);border-left-color:var(--cyan);}
+  .room-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.25);}
+  .room-row .rn{font-size:13px;}
+  .room-row .rn small{display:block;color:var(--paper-dim);font-size:10.5px;}
+
+  /* Right: material inspector, populated on hover */
+  #inspector{
+    position:absolute;right:18px;top:78px;width:280px;
+    background:rgba(15,37,48,.92);border:1px solid var(--panel-line);border-radius:4px;
+    padding:16px;transition:opacity .12s ease;
+  }
+  #inspector.empty{opacity:.55;}
+  #inspector h4{margin:0 0 4px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);text-transform:uppercase;font-weight:600;}
+  #insp-room{font-size:16px;color:var(--cyan);margin:0 0 12px;font-weight:600;}
+  #insp-empty-msg{font-size:12.5px;color:var(--paper-dim);line-height:1.5;}
+  .mat-block{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--panel-line);}
+  .mat-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .mat-label{font-size:10px;color:var(--amber);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+  .mat-name{font-size:14px;margin-bottom:8px;color:var(--paper);}
+  .mat-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;}
+  .mat-stat{font-size:11px;color:var(--paper-dim);}
+  .mat-stat b{display:block;color:var(--paper);font-size:13px;font-variant-numeric:tabular-nums;}
+
+  /* Floating hover tooltip in 3D space */
+  #hover-tip{
+    position:absolute;pointer-events:none;display:none;
+    background:var(--ink);border:1px solid var(--cyan);border-radius:3px;
+    padding:8px 10px;font-size:11.5px;color:var(--paper);z-index:50;
+    box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  #hover-tip .ht-title{color:var(--cyan);font-weight:600;margin-bottom:2px;}
+  #hover-tip .ht-row{color:var(--paper-dim);}
+  #hover-tip .ht-row b{color:var(--paper);}
+
+  #loading{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--ink);color:var(--paper-dim);font-size:13px;letter-spacing:.05em;z-index:200;
+  }
+
+  #legend-strip{
+    position:absolute;left:18px;right:320px;bottom:18px;
+    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
+    padding:10px 14px;display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--paper-dim);
+  }
+  #legend-strip .lg-item{display:flex;align-items:center;gap:6px;}
+  #legend-strip .lg-swatch{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.25);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--panel-line);border-radius:3px;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div id="loading">Laying out the floor plan...</div>
+<div id="scene"></div>
+
+<div id="topbar">
+  <div class="title"><b>Floor Plan</b> &amp; Material Arrangement<small>Hover any room to inspect its wall &amp; roof material</small></div>
+  <div class="viewtabs">
+    <button data-view="plan" class="active">Plan</button>
+    <button data-view="iso">Isometric</button>
+    <button data-view="low">Walk-through</button>
+  </div>
+</div>
+
+<div id="roomlist"><h4>Rooms</h4><div id="roomlist-items"></div></div>
+
+<div id="inspector" class="empty">
+  <h4>Material Inspector</h4>
+  <div id="insp-empty-msg">Hover over a room in the plan to see its wall and roof material specifications.</div>
+  <div id="insp-body" style="display:none;">
+    <div id="insp-room"></div>
+    <div class="mat-block">
+      <div class="mat-label">Wall Material</div>
+      <div class="mat-name" id="insp-wall-name"></div>
+      <div class="mat-stats" id="insp-wall-stats"></div>
+    </div>
+    <div class="mat-block">
+      <div class="mat-label">Roof Material</div>
+      <div class="mat-name" id="insp-roof-name"></div>
+      <div class="mat-stats" id="insp-roof-stats"></div>
+    </div>
+    <div class="mat-block" style="border-top: 1px solid var(--panel-line); padding-top: 12px;">
+      <div class="mat-label" style="color:var(--cyan);"> AI Optimization</div>
+      <div class="mat-stats">
+        <div class="mat-stat">Target Temp<b id="insp-temp"></b></div>
+        <div class="mat-stat">Best Wall<b id="insp-ai-wall"></b></div>
+        <div class="mat-stat">Best Roof<b id="insp-ai-roof"></b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="legend-strip"></div>
+<div id="hover-tip"></div>
+
+<script>
+const materials = __MATERIALS_JSON__;
+const rooms = __ROOMS_JSON__;
+
+let currentView = "plan";
+let selectedRoomId = null;
+
+/* ---------- Scene setup ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1b23);
+scene.fog = new THREE.FogExp2(0x0b1b23, 0.012);
+
+const container = document.getElementById('scene');
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.maxPolarAngle = Math.PI/2 - 0.02;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
+scene.add(sun);
+
+// Blueprint-style ground grid
+const grid = new THREE.GridHelper(80, 80, 0x1e4a5c, 0x132f3b);
+scene.add(grid);
+const groundMat = new THREE.MeshStandardMaterial({ color:0x0e2129 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(160,160), groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ---------- Build rooms ---------- */
+const meshes = [];
+const roomGroups = {};
+
+function buildRoom(rm){
+  const group = new THREE.Group();
+  const wallMat = materials[rm.wall_mat];
+  const roofMat = materials[rm.roof_mat];
+  const t = 0.18;
+
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallMat.color, roughness:0.75 });
+  const roofMaterial = new THREE.MeshStandardMaterial({ color: roofMat.color, roughness:0.6 });
+  const winMaterial = new THREE.MeshStandardMaterial({ color:0x8fd0e8, transparent:true, opacity:0.35 });
+
+  function wallPiece(w,h,d,mat){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  // Adjust rotations to map correctly
+  rm.gx = rm.x;
+  rm.gy = -rm.y;
+
+  if (rm.shape === 'Box' || !rm.shape) {
+      const north = wallPiece(rm.l, rm.h, t, wallMaterial); north.position.set(0, rm.h/2, -rm.w/2);
+      const south = wallPiece(rm.l, rm.h, t, wallMaterial); south.position.set(0, rm.h/2,  rm.w/2);
+      const west  = wallPiece(t, rm.h, rm.w, wallMaterial);  west.position.set(-rm.l/2, rm.h/2, 0);
+      const east  = wallPiece(t, rm.h, rm.w, wallMaterial);  east.position.set( rm.l/2, rm.h/2, 0);
+      group.add(north, south, west, east);
+
+      for(let i=0; i<(rm.num_windows || 2); i++){
+        const win = wallPiece(0.9, 0.9, t+0.05, winMaterial);
+        const spacing = rm.l / ((rm.num_windows||2)+1);
+        win.position.set(-rm.l/2 + spacing*(i+1), rm.h*0.55, rm.w/2);
+        group.add(win);
+      }
+
+      const roof = wallPiece(rm.l+0.35, t, rm.w+0.35, roofMaterial);
+      roof.position.set(0, rm.h, 0);
+      group.add(roof);
+
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(rm.l, rm.w), new THREE.MeshStandardMaterial({ color:0x16323e }));
+      floor.rotation.x = -Math.PI/2;
+      floor.position.y = 0.02;
+      floor.receiveShadow = true;
+      group.add(floor);
+  } else if (rm.shape === 'Cylinder') {
+      const geo = new THREE.CylinderGeometry(rm.rad, rm.rad, rm.h, 32, 1, true);
+      const mat = new THREE.MeshStandardMaterial({ color: wallMat.color, side: THREE.DoubleSide });
+      const m = new THREE.Mesh(geo, mat); m.position.y = rm.h/2; m.castShadow = true; group.add(m);
+      
+      const rGeo = new THREE.CircleGeometry(rm.rad + 0.2, 32);
+      const rMat = new THREE.MeshStandardMaterial({ color: roofMat.color });
+      const rMesh = new THREE.Mesh(rGeo, rMat);
+      rMesh.rotation.x = -Math.PI / 2; rMesh.position.y = rm.h; group.add(rMesh);
+      
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(rm.rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
+      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
+  } else if (rm.shape === 'Dome') {
+      const geo = new THREE.SphereGeometry(rm.rad, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const mat = new THREE.MeshStandardMaterial({ color: roofMat.color, side: THREE.DoubleSide });
+      const m = new THREE.Mesh(geo, mat); m.castShadow = true; group.add(m);
+      
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(rm.rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
+      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
+  } else if (rm.shape === 'Triangular (A-Frame)') {
+      const geo = new THREE.ConeGeometry(rm.l/2, rm.h, 4);
+      const mat = new THREE.MeshStandardMaterial({ color: roofMat.color });
+      const m = new THREE.Mesh(geo, mat); m.rotation.y = Math.PI / 4; m.castShadow = true; m.position.y = rm.h/2; group.add(m);
+      
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(rm.l, rm.l), new THREE.MeshStandardMaterial({ color:0x16323e }));
+      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
+  }
+
+  group.position.set(rm.gx, 0, rm.gy);
+  group.rotation.y = THREE.MathUtils.degToRad(-(rm.rot || 0));
+  group.children.forEach(c => { c.userData = { roomId: rm.id }; meshes.push(c); });
+  scene.add(group);
+  roomGroups[rm.id] = group;
+}
+
+rooms.forEach(buildRoom);
+
+/* ---------- UI: room list ---------- */
+const listEl = document.getElementById('roomlist-items');
+rooms.forEach(rm=>{
+  const row = document.createElement('div');
+  row.className = 'room-row';
+  row.id = 'row-' + rm.id;
+  row.innerHTML = `<span class="room-swatch" style="background:#${materials[rm.wall_mat].color.toString(16).padStart(6,'0')}"></span>
+    <span class="rn">${rm.name}<small>${rm.shape==='Box'?rm.l+'m × '+rm.w+'m': 'Rad '+rm.rad+'m'} · ${materials[rm.wall_mat].name}</small></span>`;
+  row.addEventListener('mouseenter', ()=> setInspector(rm.id, true));
+  row.addEventListener('mouseleave', ()=> setInspector(selectedRoomId, false));
+  row.addEventListener('click', ()=> focusRoom(rm.id));
+  listEl.appendChild(row);
+});
+
+/* ---------- Legend of all materials in use ---------- */
+const legendEl = document.getElementById('legend-strip');
+const usedKeys = [...new Set(rooms.flatMap(r=>[r.wall_mat, r.roof_mat]))];
+usedKeys.forEach(k=>{
+  const m = materials[k];
+  const item = document.createElement('div');
+  item.className = 'lg-item';
+  item.innerHTML = `<span class="lg-swatch" style="background:#${m.color.toString(16).padStart(6,'0')}"></span>${m.name}`;
+  legendEl.appendChild(item);
+});
+
+/* ---------- Inspector panel ---------- */
+function statBlock(mat){
+  return `
+    <div class="mat-stat">U-Value<b>${mat.u_value.toFixed(2)} W/m²K</b></div>
+    <div class="mat-stat">Density<b>${mat.density.toLocaleString()} kg/m³</b></div>
+    <div class="mat-stat">GWP<b>${mat.gwp.toFixed(1)} kgCO2e</b></div>
+    <div class="mat-stat">Cost<b>$${mat.cost}/m²</b></div>
+  `;
+}
+
+function setInspector(roomId, isHover){
+  const panel = document.getElementById('inspector');
+  const emptyMsg = document.getElementById('insp-empty-msg');
+  const body = document.getElementById('insp-body');
+
+  document.querySelectorAll('.room-row').forEach(r=>r.classList.remove('active'));
+
+  if(!roomId){
+    panel.classList.add('empty');
+    emptyMsg.style.display = 'block';
+    body.style.display = 'none';
+    return;
+  }
+
+  const rm = rooms.find(r=>r.id===roomId);
+  if(!rm) return;
+
+  const rowEl = document.getElementById('row-'+roomId);
+  if(rowEl) rowEl.classList.add('active');
+
+  panel.classList.remove('empty');
+  emptyMsg.style.display = 'none';
+  body.style.display = 'block';
+
+  document.getElementById('insp-room').textContent = rm.name;
+  document.getElementById('insp-wall-name').textContent = materials[rm.wall_mat].name;
+  document.getElementById('insp-wall-stats').innerHTML = statBlock(materials[rm.wall_mat]);
+  document.getElementById('insp-roof-name').textContent = materials[rm.roof_mat].name;
+  document.getElementById('insp-roof-stats').innerHTML = statBlock(materials[rm.roof_mat]);
+  
+  document.getElementById('insp-temp').textContent = (rm.target_temp||0).toFixed(1) + ' °C';
+  document.getElementById('insp-ai-wall').textContent = rm.ai_wall || 'N/A';
+  document.getElementById('insp-ai-roof').textContent = rm.ai_roof || 'N/A';
+}
+
+function highlightRoom(id, isHover){
+  Object.values(roomGroups).forEach(g=>{
+    g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(0x000000); });
+  });
+  if(id){
+    const g = roomGroups[id];
+    if(g) g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(isHover?0x1a3a3a:0x2a5555); });
+  }
+}
+
+function focusRoom(id){
+  selectedRoomId = id;
+  highlightRoom(id, false);
+  setInspector(id, false);
+  const rm = rooms.find(r=>r.id===id);
+  if(rm){ controls.target.set(rm.gx, rm.h/2, rm.gy); }
+}
+
+/* ---------- Views ---------- */
+function setView(type){
+  currentView = type;
+  document.querySelectorAll('.viewtabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===type));
+  if(type==='plan'){
+    camera.position.set(0, 35, 10);
+    controls.target.set(0,0,0);
+  } else if(type==='iso'){
+    camera.position.set(24, 20, 24);
+    controls.target.set(0,1,0);
+  } else if(type==='low'){
+    camera.position.set(0, 1.6, 14);
+    controls.target.set(0,1.5,0);
+  }
+  controls.update();
+}
+document.querySelectorAll('.viewtabs button').forEach(b=>{
+  b.addEventListener('click', ()=> setView(b.dataset.view));
+});
+setView('iso');
+
+/* ---------- Raycasting: hover + tooltip ---------- */
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tip = document.getElementById('hover-tip');
+let hoveredId = null;
+
+window.addEventListener('mousemove', (e)=>{
+  mouse.x = (e.clientX/window.innerWidth)*2 - 1;
+  mouse.y = -(e.clientY/window.innerHeight)*2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+
+  if(hits.length>0){
+    const id = hits[0].object.userData.roomId;
+    if(hoveredId !== id){
+      hoveredId = id;
+      highlightRoom(id, true);
+      setInspector(id, true);
+    }
+    const rm = rooms.find(r=>r.id===id);
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX+16)+'px';
+    tip.style.top = (e.clientY+16)+'px';
+    tip.innerHTML = `<div class="ht-title">${rm.name}</div>
+      <div class="ht-row">Wall: <b>${materials[rm.wall_mat].name}</b></div>
+      <div class="ht-row">Roof: <b>${materials[rm.roof_mat].name}</b></div>`;
+  } else {
+    if(hoveredId){
+      hoveredId = null;
+      highlightRoom(selectedRoomId, false);
+      setInspector(selectedRoomId, false);
+    }
+    tip.style.display = 'none';
+  }
+});
+
+window.addEventListener('mousedown', (e)=>{
+  if(e.target.tagName !== 'CANVAS') return;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+  if(hits.length>0){
+    focusRoom(hits[0].object.userData.roomId);
+  } else {
+    selectedRoomId = null;
+    highlightRoom(null,false);
+    setInspector(null,false);
+  }
+});
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+document.getElementById('loading').style.display = 'none';
+
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+'''.replace('__MATERIALS_JSON__', materials_json).replace('__ROOMS_JSON__', three_data_json)
+            
+            components.html(html_code, height=800, scrolling=False)
