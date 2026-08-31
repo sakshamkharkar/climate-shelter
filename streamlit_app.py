@@ -817,7 +817,7 @@ with tab2:
             # Show the standalone WebGL wind simulator
             st.markdown("### 🌪️ Advanced WebGL Aerodynamic Simulator")
             st.caption("Drag to orbit · Scroll to zoom · Interact with the HUD to test base shapes and wind speeds.")
-            with open(r"c:\Users\SAKSHAM\.antigravity\windform.html", "r", encoding="utf-8") as f:
+            with open("windform.html", "r", encoding="utf-8") as f:
                 windform_html = f.read()
             components.html(windform_html, height=700)
 
