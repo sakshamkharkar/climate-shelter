@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Windform Studio — Aerodynamic Preview</title>
+<style>
+  :root{
+    --void:#080B10;
+    --void2:#0C121A;
+    --panel:rgba(14,20,29,0.78);
+    --panel-solid:#0E141D;
+    --border:#22303F;
+    --grid:#131C26;
+    --cyan:#54D9EA;
+    --amber:#FF9A55;
+    --text:#E9EFF5;
+    --text-dim:#7C8FA1;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    background:var(--void);
+    font-family:var(--sans);
+    color:var(--text);
+  }
+  #scene{
+    position:absolute; inset:0; width:100%; height:100%;
+    touch-action:none; cursor:grab;
+  }
+  #scene.dragging{cursor:grabbing;}
+
+  .hud{ position:absolute; inset:0; pointer-events:none; }
+  .hud > *{ pointer-events:auto; }
+
+  /* Top bar */
+  .topbar{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding:22px 26px;
+    background:linear-gradient(to bottom, rgba(6,9,13,0.85), rgba(6,9,13,0));
+  }
+  .brand .eyebrow{
+    font-family:var(--mono); font-size:10px; letter-spacing:2.5px; color:var(--cyan);
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  .brand h1{
+    margin:0; font-size:19px; font-weight:600; letter-spacing:0.3px; color:var(--text);
+  }
+  .brand .sub{
+    margin-top:4px; font-size:11.5px; color:var(--text-dim); font-family:var(--mono);
+  }
+  .readouts{
+    display:flex; gap:22px;
+  }
+  .readout{ text-align:right; }
+  .readout .label{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:1.8px; color:var(--text-dim);
+    text-transform:uppercase;
+  }
+  .readout .value{
+    font-family:var(--mono); font-size:17px; color:var(--text); margin-top:3px; font-variant-numeric:tabular-nums;
+  }
+  .readout .value.accent{ color:var(--amber); }
+
+  /* Control panel */
+  .panel{
+    position:absolute; top:110px; right:26px; width:246px;
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; backdrop-filter:blur(10px);
+    padding:18px 18px 20px;
+  }
+  .panel-title{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:1.8px; color:var(--text-dim);
+    text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;
+  }
+  .panel-title::after{ content:""; flex:1; height:1px; background:var(--border); }
+
+  .field{ margin-bottom:16px; }
+  .field:last-child{ margin-bottom:0; }
+  .field-label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:11.5px; color:var(--text-dim); margin-bottom:8px;
+  }
+  .field-label .num{ font-family:var(--mono); color:var(--text); font-size:11.5px; }
+
+  .shape-row{ display:flex; gap:6px; }
+  .shape-btn{
+    flex:1; padding:8px 4px; font-size:10.5px; font-family:var(--mono);
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; cursor:pointer; letter-spacing:0.3px;
+    transition:all .15s ease;
+  }
+  .shape-btn:hover{ color:var(--text); border-color:#33465b; }
+  .shape-btn.active{
+    background:rgba(84,217,234,0.12); border-color:var(--cyan); color:var(--cyan);
+  }
+
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:3px; border-radius:2px;
+    background:var(--border); outline:none; margin:0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--cyan); cursor:pointer; border:2px solid #0e141d;
+    box-shadow:0 0 8px rgba(84,217,234,0.6);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px; height:13px; border-radius:50%; background:var(--cyan);
+    cursor:pointer; border:2px solid #0e141d; box-shadow:0 0 8px rgba(84,217,234,0.6);
+  }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:11.5px; color:var(--text-dim); padding:7px 0;
+  }
+  .switch{
+    position:relative; width:32px; height:18px; border-radius:10px;
+    background:var(--border); cursor:pointer; transition:background .15s ease; flex-shrink:0;
+  }
+  .switch.on{ background:rgba(84,217,234,0.35); }
+  .switch::after{
+    content:""; position:absolute; top:2px; left:2px; width:14px; height:14px;
+    border-radius:50%; background:var(--text-dim); transition:all .15s ease;
+  }
+  .switch.on::after{ left:16px; background:var(--cyan); }
+
+  /* Legend */
+  .legend{
+    position:absolute; left:26px; bottom:26px; width:220px;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; backdrop-filter:blur(10px);
+  }
+  .legend-title{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:1.6px; color:var(--text-dim);
+    text-transform:uppercase; margin-bottom:9px;
+  }
+  .legend-bar{
+    height:6px; border-radius:3px;
+    background:linear-gradient(to right, #54D9EA, #B8C9A8, #FF9A55);
+    margin-bottom:6px;
+  }
+  .legend-scale{
+    display:flex; justify-content:space-between;
+    font-family:var(--mono); font-size:9.5px; color:var(--text-dim);
+  }
+  .legend-note{
+    margin-top:10px; font-size:10px; color:var(--text-dim); line-height:1.5;
+  }
+
+  /* Footer tag */
+  .foottag{
+    position:absolute; right:26px; bottom:26px;
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+    letter-spacing:0.5px; text-align:right; line-height:1.6;
+  }
+  .foottag b{ color:var(--text); }
+
+  .hint{
+    position:absolute; left:50%; bottom:26px; transform:translateX(-50%);
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+    letter-spacing:0.5px; opacity:0.85; white-space:nowrap;
+  }
+
+  @media (max-width:760px){
+    .panel{
+      top:auto; bottom:0; right:0; left:0; width:100%;
+      border-radius:14px 14px 0 0; border-bottom:none;
+      display:flex; flex-direction:column;
+    }
+    .legend{ left:14px; bottom:auto; top:112px; width:150px; padding:10px 12px; }
+    .legend-note{ display:none; }
+    .foottag{ display:none; }
+    .hint{ display:none; }
+    .topbar{ padding:16px 14px; }
+    .readouts{ gap:14px; }
+    .readout .value{ font-size:14px; }
+    .brand h1{ font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="brand">
+      <div class="eyebrow">Aerodynamic Preview</div>
+      <h1>Windform Studio</h1>
+      <div class="sub">3D massing model · streamline overlay</div>
+    </div>
+    <div class="readouts">
+      <div class="readout">
+        <div class="label">Incidence</div>
+        <div class="value" id="ro-incidence">45°</div>
+      </div>
+      <div class="readout">
+        <div class="label">Freestream</div>
+        <div class="value" id="ro-speed">42 km/h</div>
+      </div>
+      <div class="readout">
+        <div class="label">Peak Δv</div>
+        <div class="value accent" id="ro-peak">2.00×</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Massing</div>
+    <div class="field">
+      <div class="shape-row">
+        <button class="shape-btn active" data-shape="slab">Slab</button>
+        <button class="shape-btn" data-shape="cylinder">Cylinder</button>
+        <button class="shape-btn" data-shape="tapered">Tapered</button>
+      </div>
+    </div>
+
+    <div class="panel-title" style="margin-top:6px;">Orientation</div>
+    <div class="field">
+      <div class="field-label"><span>Facade angle</span><span class="num" id="lbl-orient">45°</span></div>
+      <input type="range" id="rng-orient" min="0" max="360" value="45">
+    </div>
+
+    <div class="panel-title">Wind</div>
+    <div class="field">
+      <div class="field-label"><span>Speed</span><span class="num" id="lbl-speed">42 km/h</span></div>
+      <input type="range" id="rng-speed" min="5" max="100" value="55">
+    </div>
+
+    <div class="panel-title">Display</div>
+    <div class="field" style="margin-bottom:2px;">
+      <div class="toggle-row">
+        <span>Streamlines</span>
+        <div class="switch on" id="tog-lines"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Ground grid</span>
+        <div class="switch on" id="tog-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">Relative flow speed</div>
+    <div class="legend-bar"></div>
+    <div class="legend-scale"><span>0.0×</span><span>1.0×</span><span>2.0×</span></div>
+    <div class="legend-note">Simplified potential-flow model — illustrates corner acceleration &amp; windward stagnation, not a full CFD solve.</div>
+  </div>
+
+  <div class="foottag">Model · <b id="tag-shape">Slab Tower</b><br>H 18m · footprint ⌀12m</div>
+  <div class="hint">drag to orbit · scroll to zoom</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Design tokens ----------
+  const COL = {
+    void: 0x080B10,
+    grid: 0x131C26,
+    gridMajor: 0x1B2733,
+    floor: 0x0A0F15,
+    buildingBody: 0x141C26,
+    edge: 0x54D9EA,
+    cyan: 0x54D9EA,
+    amber: 0xFF9A55,
+    arrow: 0xFF9A55
+  };
+
+  const R = 6;            // flow-field reference radius (matches building footprint)
+  const BUILD_H = 18;     // building height
+
+  // ---------- Renderer / scene ----------
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(COL.void);
+  scene.fog = new THREE.FogExp2(COL.void, 0.0105);
+
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 500);
+
+  // ---------- Lighting ----------
+  scene.add(new THREE.AmbientLight(0x2a3542, 1.1));
+  const key = new THREE.DirectionalLight(0x8fb8ff, 0.9);
+  key.position.set(30, 40, 20);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x54D9EA, 0.35);
+  rim.position.set(-25, 15, -30);
+  scene.add(rim);
+
+  // ---------- Ground ----------
+  const floorGeo = new THREE.CircleGeometry(90, 48);
+  const floorMat = new THREE.MeshStandardMaterial({ color: COL.floor, roughness:1, metalness:0 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -0.02;
+  scene.add(floor);
+
+  const grid = new THREE.GridHelper(180, 60, COL.gridMajor, COL.grid);
+  grid.material.transparent = true;
+  grid.material.opacity = 0.55;
+  scene.add(grid);
+
+  // ---------- Building ----------
+  const buildingGroup = new THREE.Group();
+  scene.add(buildingGroup);
+
+  let bodyMesh = null, edgeLines = null, roofUnit = null;
+
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: COL.buildingBody, 
+    metalness: 0.9,
+    roughness: 0.1,
+    envMapIntensity: 1.0,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+    opacity: 0.6,
+    transparent: true,
+    side: THREE.DoubleSide,
+    emissive: 0x0a1525,
+    emissiveIntensity: 0.5
+  });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent:true, opacity:1.0 });
+
+  function buildGeometryFor(shape){
+    if(shape === 'cylinder'){
+      return new THREE.CylinderGeometry(R, R, BUILD_H, 28, 1);
+    } else if(shape === 'tapered'){
+      return new THREE.CylinderGeometry(R*0.55, R, BUILD_H, 4, 1);
+    }
+    // slab (default) — rectangular tower with footprint inscribed near radius R
+    return new THREE.BoxGeometry(R*1.55, BUILD_H, R*1.15);
+  }
+
+  function setShape(shape){
+    if(bodyMesh){ buildingGroup.remove(bodyMesh); bodyMesh.geometry.dispose(); }
+    if(edgeLines){ buildingGroup.remove(edgeLines); edgeLines.geometry.dispose(); }
+    if(roofUnit){ buildingGroup.remove(roofUnit); roofUnit.geometry.dispose(); }
+
+    const geo = buildGeometryFor(shape);
+    if(shape === 'tapered') geo.rotateY(Math.PI/4);
+
+    bodyMesh = new THREE.Mesh(geo, bodyMat);
+    bodyMesh.position.y = BUILD_H/2;
+    buildingGroup.add(bodyMesh);
+
+    const edgeGeo = new THREE.EdgesGeometry(geo, shape==='cylinder' ? 25 : 1);
+    edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+    edgeLines.position.y = BUILD_H/2;
+    buildingGroup.add(edgeLines);
+
+    // rooftop mechanical unit — small detail
+    const ruGeo = new THREE.BoxGeometry(R*0.55, 1.2, R*0.4);
+    roofUnit = new THREE.Mesh(ruGeo, bodyMat);
+    roofUnit.position.set(0, BUILD_H + 0.6, 0);
+    buildingGroup.add(roofUnit);
+
+    document.getElementById('tag-shape').textContent =
+      shape==='cylinder' ? 'Cylindrical Tower' : shape==='tapered' ? 'Tapered Tower' : 'Slab Tower';
+  }
+
+  // plinth (ground-fixed, does not rotate with orientation)
+  const plinthGeo = new THREE.BoxGeometry(R*2.1, 0.4, R*2.1);
+  const plinthMat = new THREE.MeshStandardMaterial({ color:0x0C131C, roughness:0.9 });
+  const plinth = new THREE.Mesh(plinthGeo, plinthMat);
+  plinth.position.y = 0.2;
+  scene.add(plinth);
+
+  setShape('slab');
+
+  // wind direction arrow (fixed, world space)
+  const arrowDir = new THREE.Vector3(1,0,0);
+  const arrow = new THREE.ArrowHelper(arrowDir, new THREE.Vector3(-32, 1.2, 0), 9, COL.arrow, 2.4, 1.4);
+  scene.add(arrow);
+
+  // ---------- Potential flow field (2D, x-z plane around cylinder radius R) ----------
+  function velocityAt(x, z){
+    const r2 = x*x + z*z;
+    if(r2 < R*R*0.92) return { vx:0, vz:0, speed:0 };
+    const inv = 1/(r2*r2);
+    const vx = 1 - R*R*(x*x - z*z)*inv;
+    const vz = -2*R*R*x*z*inv;
+    return { vx, vz, speed: Math.sqrt(vx*vx+vz*vz) };
+  }
+
+  function traceStreamline(z0, y){
+    const pts = [], speeds = [];
+    let x = -42, z = z0;
+    const dt = 0.42;
+    for(let i=0;i<230;i++){
+      const v0 = velocityAt(x,z);
+      if(v0.speed < 1e-4) break;
+      pts.push(new THREE.Vector3(x,y,z));
+      speeds.push(v0.speed);
+      const midx = x + v0.vx*dt*0.5, midz = z + v0.vz*dt*0.5;
+      const v1 = velocityAt(midx, midz);
+      x += v1.vx*dt;
+      z += v1.vz*dt;
+      if(x > 42) break;
+    }
+    return { pts, speeds };
+  }
+
+  const LATERAL_OFFSETS = [-17,-13,-10,-8.2,-7,-5.5,5.5,7,8.2,10,13,17];
+  const HEIGHT_LAYERS = [1.5, 4.5, 8.5, 12.5, 16.5];
+  const streamlines = [];
+  HEIGHT_LAYERS.forEach(y=>{
+    LATERAL_OFFSETS.forEach(z0=>{
+      const sl = traceStreamline(z0, y);
+      if(sl.pts.length > 4) streamlines.push(sl);
+    });
+  });
+
+  const cyanColor = new THREE.Color(COL.cyan);
+  const amberColor = new THREE.Color(COL.amber);
+  const tmpColor = new THREE.Color();
+  function colorForRatio(ratio){
+    const t = Math.max(0, Math.min(1, ratio/2));
+    tmpColor.copy(cyanColor).lerp(amberColor, t);
+    return tmpColor;
+  }
+
+  // static translucent guide lines
+  const linesGroup = new THREE.Group();
+  streamlines.forEach(sl=>{
+    const positions = new Float32Array(sl.pts.length*3);
+    const colors = new Float32Array(sl.pts.length*3);
+    for(let i=0;i<sl.pts.length;i++){
+      positions[i*3]=sl.pts[i].x; positions[i*3+1]=sl.pts[i].y; positions[i*3+2]=sl.pts[i].z;
+      const c = colorForRatio(sl.speeds[i]);
+      colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+    const mat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.15 });
+    linesGroup.add(new THREE.Line(geo, mat));
+  });
+  scene.add(linesGroup);
+
+  // animated particles
+  function makeCircleTexture(){
+    const c = document.createElement('canvas'); c.width=64; c.height=64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(0.4,'rgba(255,255,255,0.9)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
+    return new THREE.CanvasTexture(c);
+  }
+  const dotTexture = makeCircleTexture();
+
+  const PARTICLES_PER_LINE = 6;
+  const particleMeta = [];
+  streamlines.forEach((sl, slIdx)=>{
+    for(let p=0;p<PARTICLES_PER_LINE;p++){
+      particleMeta.push({ slIdx, phase: (p/PARTICLES_PER_LINE) + Math.random()*0.06 });
+    }
+  });
+  const numParticles = particleMeta.length;
+  const pPositions = new Float32Array(numParticles*3);
+  const pColors = new Float32Array(numParticles*3);
+  const particleGeo = new THREE.BufferGeometry();
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions,3));
+  particleGeo.setAttribute('color', new THREE.BufferAttribute(pColors,3));
+  const particleMat = new THREE.PointsMaterial({
+    size:1.8, map:dotTexture, transparent:true, vertexColors:true,
+    depthWrite:false, blending:THREE.AdditiveBlending, sizeAttenuation:true
+  });
+  const particlePoints = new THREE.Points(particleGeo, particleMat);
+  scene.add(particlePoints);
+
+  // ---------- Custom orbit-style camera control ----------
+  const camState = {
+    azimuth: Math.PI*0.32,
+    elevation: 0.42,
+    radius: 58,
+    target: new THREE.Vector3(0, 9, 0)
+  };
+  let dragging = false, lastX=0, lastY=0, startAz=0, startEl=0;
+
+  function updateCameraPosition(){
+    const { azimuth, elevation, radius, target } = camState;
+    camera.position.x = target.x + radius*Math.cos(elevation)*Math.sin(azimuth);
+    camera.position.y = target.y + radius*Math.sin(elevation);
+    camera.position.z = target.z + radius*Math.cos(elevation)*Math.cos(azimuth);
+    camera.lookAt(target);
+  }
+  updateCameraPosition();
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    dragging = true; canvas.classList.add('dragging');
+    lastX = e.clientX; lastY = e.clientY;
+    startAz = camState.azimuth; startEl = camState.elevation;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    camState.azimuth = startAz - dx*0.0055;
+    camState.elevation = Math.max(0.06, Math.min(1.45, startEl + dy*0.0055));
+  });
+  window.addEventListener('pointerup', (e)=>{
+    dragging = false; canvas.classList.remove('dragging');
+  });
+  canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    camState.radius = Math.max(24, Math.min(130, camState.radius + e.deltaY*0.045));
+  }, { passive:false });
+
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- UI wiring ----------
+  let windSpeedFactor = 0.6;   // animation-time multiplier
+  let windKmh = 42;
+  let showLines = true, showGrid = true;
+
+  function speedToKmh(v){ return Math.round(10 + (v-5)*(0.90)); }
+
+  const speedSlider = document.getElementById('rng-speed');
+  const speedLbl = document.getElementById('lbl-speed');
+  const roSpeed = document.getElementById('ro-speed');
+  function applySpeed(v){
+    windKmh = speedToKmh(v);
+    windSpeedFactor = 0.18 + (v/100)*1.1;
+    speedLbl.textContent = windKmh + ' km/h';
+    roSpeed.textContent = windKmh + ' km/h';
+  }
+  speedSlider.addEventListener('input', e=> applySpeed(+e.target.value));
+  applySpeed(+speedSlider.value);
+
+  const orientSlider = document.getElementById('rng-orient');
+  const orientLbl = document.getElementById('lbl-orient');
+  const roIncidence = document.getElementById('ro-incidence');
+  function applyOrient(v){
+    buildingGroup.rotation.y = THREE.MathUtils.degToRad(v);
+    orientLbl.textContent = v + '°';
+    roIncidence.textContent = v + '°';
+  }
+  orientSlider.addEventListener('input', e=> applyOrient(+e.target.value));
+  applyOrient(+orientSlider.value);
+
+  document.querySelectorAll('.shape-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.shape-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      setShape(btn.dataset.shape);
+      applyOrient(+orientSlider.value);
+    });
+  });
+
+  const togLines = document.getElementById('tog-lines');
+  togLines.addEventListener('click', ()=>{
+    showLines = !showLines;
+    togLines.classList.toggle('on', showLines);
+    linesGroup.visible = showLines;
+    particlePoints.visible = showLines;
+  });
+  const togGrid = document.getElementById('tog-grid');
+  togGrid.addEventListener('click', ()=>{
+    showGrid = !showGrid;
+    togGrid.classList.toggle('on', showGrid);
+    grid.visible = showGrid;
+  });
+
+  // ---------- Animation loop ----------
+  let timeAccum = 0;
+  let last = performance.now();
+
+  function animate(now){
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+    timeAccum += dt * windSpeedFactor;
+
+    for(let i=0;i<numParticles;i++){
+      const meta = particleMeta[i];
+      const sl = streamlines[meta.slIdx];
+      const t = (meta.phase + timeAccum*0.09) % 1;
+      const idx = Math.min(sl.pts.length-1, Math.floor(t*(sl.pts.length-1)));
+      const p = sl.pts[idx];
+      pPositions[i*3]=p.x; pPositions[i*3+1]=p.y; pPositions[i*3+2]=p.z;
+      const c = colorForRatio(sl.speeds[idx]);
+      pColors[i*3]=c.r; pColors[i*3+1]=c.g; pColors[i*3+2]=c.b;
+    }
+    particleGeo.attributes.position.needsUpdate = true;
+    particleGeo.attributes.color.needsUpdate = true;
+
+    updateCameraPosition();
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+
+})();
+</script>
+</body>
+</html>
