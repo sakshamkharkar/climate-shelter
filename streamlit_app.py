@@ -166,7 +166,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Shelter Weather Analyzer & 3D Thermodynamics")
+st.title("ThermoNex")
 
 tab1, tab2, tab3 = st.tabs(["1. Map & Weather Data", "2. 3D Design & Thermodynamics", "3. 3D Building Simulation"])
 
