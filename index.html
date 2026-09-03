@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Thermonex — climate-adaptive shelter design and thermal analysis." />
+    <title>Thermonex | Climate-Adaptive Thermal Design</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Thermonex home"><span>THERMO</span><i>NEX</i><small>Climate-Adaptive Thermal Design</small></a>
+      <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span></button>
+      <nav aria-label="Main navigation"><a href="#problem">Problem</a><a href="#solution">Solution</a><a href="#how-it-works">How It Works</a><a href="#capabilities">Capabilities</a></nav>
+      <a class="button button-primary header-cta" data-launch href="https://climate-sheltergit-aunatefpxtmedyjide489e.streamlit.app/" target="_blank" rel="noopener">Open Thermonex <b>↗</b></a>
+    </header>
+
+    <main id="top">
+      <section class="hero section-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span></span> Climate-Adaptive Shelter Design</p>
+          <h1>Design Shelters<br />for <em>Their Climate.</em></h1>
+          <p class="lede">Analyze location-specific environmental conditions, configure shelter geometry and materials, and evaluate thermal performance to develop more efficient passive shelter designs.</p>
+          <div class="hero-actions"><a class="button button-primary" data-launch href="http://localhost:8501" target="_blank" rel="noopener">Launch Shelter Designer <b>↗</b></a><a class="button button-secondary" href="#how-it-works">Explore How It Works <b>↓</b></a></div>
+          <p class="hero-note">Engineering workflow for area-specific thermal comfort design.</p>
+        </div>
+        <div class="hero-model reveal" aria-label="Technical 3D shelter visualization">
+          <div class="model-topline"><span>THERMAL MODEL / 01</span><span>LAT 34.15° N</span></div>
+          <div class="model-stage">
+            <svg viewBox="0 0 640 480" role="img" aria-label="Isometric shelter with solar and thermal annotations">
+              <defs><linearGradient id="sunbeam" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d92f38" stop-opacity=".35"/><stop offset="1" stop-color="#d92f38" stop-opacity="0"/></linearGradient><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#b7c0c9" stroke-width=".5"/></pattern></defs>
+              <path d="M52 395H590M73 360H610M120 427H560" stroke="#cbd2d8" stroke-width="1"/><path d="M109 394 354 217 554 331 319 446Z" fill="url(#grid)" stroke="#a9b4bd"/>
+              <g class="shelter">
+                <path d="M205 218 351 132 495 216 348 309Z" fill="#dfe5e8" stroke="#152637" stroke-width="2"/>
+                <path d="M205 218 348 309V405L205 324Z" fill="#edf0f1" stroke="#152637" stroke-width="2"/>
+                <path d="M348 309 495 216V314L348 405Z" fill="#cbd4d9" stroke="#152637" stroke-width="2"/>
+                <path d="M205 218 351 132 495 216" fill="none" stroke="#d92f38" stroke-width="4"/>
+                <path d="M242 240 301 274V352L242 318Z" fill="#9fb8c9" stroke="#152637" stroke-width="2"/><path d="M257 249V327M273 258V336M288 267V345" stroke="#e9f5fb"/>
+                <path d="M388 284 449 248V319L388 356Z" fill="#253b4a" stroke="#152637" stroke-width="2"/>
+                <path d="M400 284 400 349M414 275V341M428 267V332" stroke="#78b4d1"/>
+              </g>
+              <g fill="none" stroke="#d92f38" stroke-width="1.5" stroke-dasharray="5 5"><path d="M493 94 396 191"/><path d="M110 121 271 253"/></g>
+              <path d="M520 66 471 150 551 126Z" fill="url(#sunbeam)"/><circle cx="543" cy="56" r="17" fill="#d92f38"/><path d="M543 26V17M543 95v-9M573 56h9M504 56h9M564 35l7-7M515 84l7-7" stroke="#d92f38" stroke-width="2"/>
+              <g class="annotation"><path d="M452 164h115"/><circle cx="452" cy="164" r="3"/><text x="464" y="156">SOLAR INPUT</text><text x="464" y="176">ORIENTATION + ROOF</text></g>
+              <g class="annotation"><path d="M283 358H117"/><circle cx="283" cy="358" r="3"/><text x="117" y="347">SHELTER ENVELOPE</text><text x="117" y="367">MATERIAL LAYERS</text></g>
+              <g class="annotation"><path d="M405 357h130"/><circle cx="405" cy="357" r="3"/><text x="420" y="347">THERMAL FLOW</text><text x="420" y="367">HEAT-LOSS PATHS</text></g>
+            </svg>
+          </div>
+          <div class="model-footer"><span><i class="dot red"></i> Envelope analysis</span><span><i class="dot blue"></i> Weather inputs active</span></div>
+        </div>
+      </section>
+
+      <section class="context-strip" aria-label="Platform context"><div><b>AREA-SPECIFIC</b><span>DESIGN</span></div><div><b>CLIMATE-DRIVEN</b><span>ANALYSIS</span></div><div><b>3D SHELTER</b><span>SIMULATION</span></div><div><b>THERMAL</b><span>PERFORMANCE</span></div></section>
+
+      <section id="problem" class="problem section-pad">
+        <div class="section-intro reveal"><p class="eyebrow"><span></span> Design context</p><h2>The Problem Isn't<br />Just the <em>Temperature.</em></h2><p>Generic shelters are often designed without sufficiently accounting for local atmospheric conditions. In high-altitude cold regions such as Ladakh, the design must balance daytime solar opportunity with severe night-time heat loss.</p></div>
+        <div class="comparison-paths reveal">
+          <article class="path generic"><p>01 / GENERIC SHELTER</p><h3>One design,<br />many climates.</h3><ol><li>Climate mismatch</li><li>High heat loss</li><li>Poor night-time retention</li><li>Higher heating demand</li></ol></article>
+          <div class="vs">VS</div>
+          <article class="path adaptive"><p>02 / CLIMATE-ADAPTIVE SHELTER</p><h3>Design informed<br />by its environment.</h3><ol><li>Climate analysis</li><li>Design adaptation</li><li>Thermal simulation</li><li>Improved passive performance</li></ol></article>
+        </div>
+      </section>
+
+      <section id="solution" class="solution section-pad section-grid-dark">
+        <div class="section-intro reveal"><p class="eyebrow light"><span></span> The platform</p><h2>Turn Climate Data<br />Into <em>Shelter Decisions.</em></h2><p>Connect environmental information with geometry, materials and thermal analysis in one deliberate engineering workflow.</p></div>
+        <div class="workflow reveal" aria-label="Engineering workflow"><div><b>01</b><span>LOCATION</span></div><i></i><div><b>02</b><span>CLIMATE PROFILE</span></div><i></i><div><b>03</b><span>SHELTER CONFIGURATION</span></div><i></i><div><b>04</b><span>THERMAL SIMULATION</span></div><i></i><div><b>05</b><span>DESIGN COMPARISON</span></div><i></i><div class="recommended"><b>06</b><span>RECOMMENDED<br />CONFIGURATION</span></div></div>
+      </section>
+
+      <section id="how-it-works" class="how section-pad"><div class="section-intro center reveal"><p class="eyebrow"><span></span> Process</p><h2>Built around a practical<br /><em>engineering workflow.</em></h2></div><div class="steps">
+        <article class="reveal"><span class="step-no">01</span><div class="icon map-icon">⌖</div><h3>Select Location</h3><p>Choose a location using the interactive map and obtain climate and weather information.</p></article>
+        <article class="reveal"><span class="step-no">02</span><div class="icon chart-icon">⌁</div><h3>Analyze Climate</h3><p>Analyze environmental conditions such as temperature and solar availability.</p></article>
+        <article class="reveal"><span class="step-no">03</span><div class="icon cube-icon">◇</div><h3>Configure Shelter</h3><p>Define geometry, dimensions, orientation, openings, materials and other parameters.</p></article>
+        <article class="reveal"><span class="step-no">04</span><div class="icon thermal-icon">≋</div><h3>Simulate</h3><p>Evaluate passive indoor temperature, thermal behavior, solar energy and heat flow.</p></article>
+        <article class="reveal"><span class="step-no">05</span><div class="icon compare-icon">↔</div><h3>Compare &amp; Optimize</h3><p>Compare configurations and identify better thermal performance under selected conditions.</p></article>
+      </div></section>
+
+      <section id="capabilities" class="capabilities section-pad"><div class="section-intro reveal"><p class="eyebrow"><span></span> Engineering toolkit</p><h2>One Platform.<br /><em>Multiple Engineering Analyses.</em></h2></div><div class="cap-grid">
+        <article class="reveal"><span>01</span><h3>Climate &amp; Weather Analysis</h3><p>Location-specific environmental data for understanding local design conditions.</p><i>↗</i></article><article class="reveal"><span>02</span><h3>3D Shelter Design</h3><p>Configure shelter geometry and visualize the proposed structure in 3D.</p><i>↗</i></article><article class="reveal"><span>03</span><h3>Thermodynamic Analysis</h3><p>Evaluate thermal behavior and passive indoor temperature.</p><i>↗</i></article><article class="reveal"><span>04</span><h3>Material Comparison</h3><p>Compare wall and material configurations based on thermal performance.</p><i>↗</i></article><article class="reveal"><span>05</span><h3>Energy &amp; Solar Analysis</h3><p>Analyze solar contribution and energy-related performance.</p><i>↗</i></article><article class="reveal"><span>06</span><h3>Building Simulation</h3><p>Visualize and analyze the configured shelter in a 3D simulation environment.</p><i>↗</i></article>
+      </div></section>
+
+      <section class="visual-section section-pad"><div class="visual-copy reveal"><p class="eyebrow"><span></span> 3D design environment</p><h2>See the Shelter<br />Before You <em>Build It.</em></h2><p>Configure geometry, visualize the structure in 3D, and connect the design to thermal and environmental analysis.</p><div class="tag-list"><span>SOLAR INPUT</span><span>THERMAL FLOW</span><span>SHELTER ENVELOPE</span><span>THERMAL STORAGE</span></div></div><div class="technical-panel reveal"><div class="panel-head"><span>3D BUILDING SIMULATION</span><span>◉ LIVE VIEW</span></div><div class="panel-body"><div class="wire-shelter"><span class="roof"></span><span class="front"></span><span class="side"></span><i></i></div><svg class="panel-lines" viewBox="0 0 600 380"><path d="M40 310 300 168 552 310M120 353 300 253 482 353"/><path d="M88 266 300 150 512 266" stroke-dasharray="5 6"/><path d="M400 50 330 184M80 92 264 201"/></svg><label class="label solar-label">SOLAR INPUT</label><label class="label thermal-label">THERMAL FLOW</label><label class="label envelope-label">ENVELOPE</label></div><div class="panel-foot"><span>Geometry: Gabled / 42 m²</span><span>Orientation: 164° S</span><span>Surface analysis active</span></div></div></section>
+
+      <section class="analysis section-pad"><div class="section-intro reveal"><p class="eyebrow"><span></span> Thermodynamic preview</p><h2>From Geometry to<br /><em>Thermal Performance.</em></h2><p>Preview how the engineering dashboard brings climate inputs and shelter parameters into a single analysis view.</p><small>Illustrative interface preview — values are not live results.</small></div><div class="dashboard reveal"><div class="dash-top"><b>THERMAL ANALYSIS</b><span>Location: Leh, Ladakh</span><button>Run analysis</button></div><div class="metrics"><div><span>PASSIVE INDOOR TEMPERATURE</span><b>—<sup>°C</sup></b><i>Model output</i></div><div><span>SOLAR ENERGY</span><b>—<sup>kWh</sup></b><i>Model output</i></div><div><span>HEAT LOSS</span><b>—<sup>W</sup></b><i>Model output</i></div></div><div class="chart"><div class="chart-label">AMBIENT TEMPERATURE <i></i> INDOOR TEMPERATURE <b></b></div><svg viewBox="0 0 640 230" preserveAspectRatio="none"><path class="gridline" d="M0 30H640M0 80H640M0 130H640M0 180H640"/><path class="ambient" d="M0 90 C45 55 70 66 110 90S180 155 215 142S260 90 315 105S395 160 438 152S510 76 550 86S600 120 640 114"/><path class="indoor" d="M0 125 C68 109 95 113 145 121S220 140 270 129S340 113 390 123S450 140 500 128S570 104 640 118"/></svg><div class="axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>22:00</span></div></div></div></section>
+
+      <section class="comparison section-pad"><div class="section-intro center reveal"><p class="eyebrow"><span></span> Design decisions</p><h2>Don't Guess.<br /><em>Compare.</em></h2><p>Evaluate alternative shelter configurations under the same environmental conditions.</p></div><div class="table-wrap reveal"><div class="compare-table"><div class="row head"><span>CONFIGURATION</span><span>INDOOR TEMPERATURE</span><span>HEAT LOSS</span><span>SOLAR GAIN</span><span>THERMAL PERFORMANCE</span></div><div class="row"><b>Configuration A</b><span>—</span><span>—</span><span>—</span><span><i class="status"></i> Evaluate</span></div><div class="row"><b>Configuration B</b><span>—</span><span>—</span><span>—</span><span><i class="status"></i> Evaluate</span></div><div class="row"><b>Configuration C</b><span>—</span><span>—</span><span>—</span><span><i class="status"></i> Evaluate</span></div><div class="row recommended-row"><b>Recommended</b><span colspan="4">Based on your model outputs</span></div></div><p>Result fields are populated in Shelter Designer after simulation; no performance values are implied here.</p></div></section>
+
+      <section class="autonomy section-pad"><div class="autonomy-mark">↗</div><div class="reveal"><p class="eyebrow"><span></span> Optimization direction</p><h2>Toward passive<br /><em>thermal autonomy.</em></h2><p>Maintain acceptable indoor conditions for longer periods with reduced dependence on external heating. This is the design goal—not an unsupported performance claim.</p></div></section>
+
+      <section class="impact section-pad"><div class="section-intro reveal"><p class="eyebrow"><span></span> Application context</p><h2>Designed for Extreme<br />Environments. <em>Built to Adapt.</em></h2></div><div class="impact-list reveal"><span>High-altitude cold regions</span><span>Defence shelters</span><span>Remote infrastructure</span><span>Disaster-relief shelters</span><span>Region-specific passive buildings</span></div></section>
+
+      <section class="sih reveal"><div><p class="eyebrow"><span></span> Smart India Hackathon</p><h2>Built for a Real<br /><em>Engineering Challenge.</em></h2></div><div class="sih-info"><span>PROBLEM STATEMENT</span><p>Software Based Model Development for Design of Area Specific Shelter for Thermal Comfort Maintenance</p><span>ORGANIZATION</span><strong>DRDO</strong></div></section>
+
+      <section class="final-cta"><p class="eyebrow light"><span></span> Start the workflow</p><h2>Ready to Design<br />for the <em>Climate?</em></h2><p>Explore climate conditions, configure your shelter and evaluate its thermal performance.</p><a class="button button-light" data-launch href="http://localhost:8501" target="_blank" rel="noopener">Launch Shelter Designer <b>↗</b></a><small>Climate Analysis <i>→</i> Shelter Design <i>→</i> Thermal Simulation</small></section>
+    </main>
+    <footer><a class="brand" href="#top"><span>THERMO</span><i>NEX</i><small>Climate-Adaptive Thermal Design</small></a><span>Smart India Hackathon Project</span><div><a href="#problem">Problem</a><a href="#solution">Solution</a><a href="#how-it-works">How It Works</a><a data-launch href="https://climate-sheltergit-aunatefpxtmedyjide489e.streamlit.app/" target="_blank" rel="noopener">Open Thermonex</a></div></footer>
+    <script src="script.js"></script>
+  </body>
+</html>
