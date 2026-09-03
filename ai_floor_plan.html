@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Floor Plan &amp; Material Dashboard</title>
+<style>
+  :root{
+    --ink:#0b1b23;
+    --panel:#0f2530;
+    --panel-line:#1e4a5c;
+    --grid:#132f3b;
+    --cyan:#5fd4d0;
+    --amber:#e8a94f;
+    --paper:#eef4f2;
+    --paper-dim:#9db4b9;
+    --danger:#e0684f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;color:var(--paper);overflow:hidden;}
+  #scene{position:absolute;inset:0;}
+
+  /* Top strip */
+  #topbar{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;
+    background:linear-gradient(180deg,rgba(11,27,35,.95),rgba(11,27,35,0));
+    pointer-events:none;
+    z-index:10;
+  }
+  #topbar .title{
+    pointer-events:auto;
+    font-size:15px;letter-spacing:.02em;color:var(--paper);
+  }
+  #topbar .title b{color:var(--cyan);font-weight:600;}
+  #topbar .title small{display:block;color:var(--paper-dim);font-size:11.5px;margin-top:2px;}
+
+  .viewtabs{pointer-events:auto;display:flex;gap:2px;background:var(--panel);border:1px solid var(--panel-line);border-radius:3px;overflow:hidden;}
+  .viewtabs button{
+    background:transparent;border:none;color:var(--paper-dim);
+    padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit;
+    border-right:1px solid var(--panel-line);
+    transition: all 0.2s;
+  }
+  .viewtabs button:last-child{border-right:none;}
+  .viewtabs button:hover{color:var(--paper);background:rgba(95,212,208,.08);}
+  .viewtabs button.active{color:var(--ink);background:var(--cyan);font-weight:bold;}
+
+  /* Left: room legend / arrangement list */
+  #roomlist{
+    position:absolute;left:18px;top:78px;bottom:18px;width:230px;
+    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
+    padding:14px;overflow-y:auto;z-index:10;
+  }
+  #roomlist h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);font-weight:600;text-transform:uppercase;}
+  .room-row{
+    display:flex;align-items:center;gap:9px;padding:8px 6px;border-radius:3px;cursor:pointer;
+    border-left:3px solid transparent;margin-bottom:2px;transition:background .15s;
+  }
+  .room-row:hover{background:rgba(95,212,208,.08);}
+  .room-row.active{background:rgba(95,212,208,.14);border-left-color:var(--cyan);}
+  .room-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.25);}
+  .room-row .rn{font-size:13px;}
+  .room-row .rn small{display:block;color:var(--paper-dim);font-size:10.5px;}
+
+  /* Right: material inspector, populated on hover */
+  #inspector{
+    position:absolute;right:18px;top:78px;width:290px;
+    background:rgba(15,37,48,.92);border:1px solid var(--panel-line);border-radius:4px;
+    padding:16px;transition:opacity .12s ease;z-index:10;max-height:calc(100vh - 100px);overflow-y:auto;
+  }
+  #inspector.empty{opacity:.55;}
+  #inspector h4{margin:0 0 4px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);text-transform:uppercase;font-weight:600;}
+  #insp-room{font-size:16px;color:var(--cyan);margin:0 0 12px;font-weight:600;}
+  #insp-empty-msg{font-size:12.5px;color:var(--paper-dim);line-height:1.5;}
+  .mat-block{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--panel-line);}
+  .mat-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .mat-label{font-size:10px;color:var(--amber);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+  .mat-name{font-size:14px;margin-bottom:8px;color:var(--paper);}
+  .mat-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;}
+  .mat-stat{font-size:11px;color:var(--paper-dim);}
+  .mat-stat b{display:block;color:var(--paper);font-size:13px;font-variant-numeric:tabular-nums;}
+
+  /* Floating hover tooltip in 3D space */
+  #hover-tip{
+    position:absolute;pointer-events:none;display:none;
+    background:var(--ink);border:1px solid var(--cyan);border-radius:3px;
+    padding:8px 10px;font-size:11.5px;color:var(--paper);z-index:50;
+    box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  #hover-tip .ht-title{color:var(--cyan);font-weight:600;margin-bottom:2px;}
+  #hover-tip .ht-row{color:var(--paper-dim);margin:2px 0;}
+  #hover-tip .ht-row b{color:var(--paper);}
+
+  #loading{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--ink);color:var(--paper-dim);font-size:13px;letter-spacing:.05em;z-index:200;
+  }
+
+  #legend-strip{
+    position:absolute;left:18px;right:330px;bottom:18px;
+    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
+    padding:10px 14px;display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--paper-dim);z-index:10;
+  }
+  #legend-strip .lg-item{display:flex;align-items:center;gap:6px;}
+  #legend-strip .lg-swatch{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.25);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--panel-line);border-radius:3px;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div id="loading">Laying out the floor plan...</div>
+<div id="scene"></div>
+
+<div id="topbar">
+  <div class="title"><b>Floor Plan</b> &amp; Material Arrangement<small>Hover any room to inspect its wall &amp; roof material</small></div>
+  <div class="viewtabs">
+    <button data-view="plan" class="active">Plan</button>
+    <button data-view="iso">Isometric</button>
+    <button data-view="low">Walk-through</button>
+  </div>
+</div>
+
+<div id="roomlist"><h4>Rooms</h4><div id="roomlist-items"></div></div>
+
+<div id="inspector" class="empty">
+  <h4>Material Inspector</h4>
+  <div id="insp-empty-msg">Hover over a room in the plan to see its wall and roof material specifications.</div>
+  <div id="insp-body" style="display:none;">
+    <div id="insp-room"></div>
+    <div class="mat-block">
+      <div class="mat-label">Wall Material</div>
+      <div class="mat-name" id="insp-wall-name"></div>
+      <div class="mat-stats" id="insp-wall-stats"></div>
+    </div>
+    <div class="mat-block">
+      <div class="mat-label">Roof Material</div>
+      <div class="mat-name" id="insp-roof-name"></div>
+      <div class="mat-stats" id="insp-roof-stats"></div>
+    </div>
+    <div class="mat-block" id="insp-ai-block" style="border-top:1px solid var(--panel-line); margin-top:10px; padding-top:10px;">
+      <div class="mat-label" style="color:var(--cyan); font-weight:700;">&#10024; AI Thermodynamics &amp; Passive Strategy</div>
+      <div class="mat-stats">
+        <div class="mat-stat">Target Temp<b id="insp-target-temp" style="color:var(--cyan)">--</b></div>
+        <div class="mat-stat">Passive Temp<b id="insp-passive-temp">--</b></div>
+        <div class="mat-stat">AI Best Wall<b id="insp-ai-wall" style="color:var(--cyan)">--</b></div>
+        <div class="mat-stat">AI Best Roof<b id="insp-ai-roof" style="color:var(--amber)">--</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="legend-strip"></div>
+<div id="hover-tip"></div>
+
+<script>
+const materials = MATERIALS_PLACEHOLDER;
+const rooms = ROOMS_PLACEHOLDER;
+
+const defaultMat = {
+  name: "Standard Building Material",
+  color: 0x7c7f82,
+  conductivity: 0.8,
+  density: 1800,
+  cost: 30,
+  rvalue: 1.5,
+  u_value: 0.67
+};
+
+function getMat(key) {
+  if (!key) return defaultMat;
+  if (materials[key]) return materials[key];
+  const lower = String(key).toLowerCase().trim();
+  for (let k in materials) {
+    if (k.toLowerCase() === lower || lower.includes(k.toLowerCase()) || k.toLowerCase().includes(lower)) {
+      return materials[k];
+    }
+  }
+  return defaultMat;
+}
+
+let currentView = "plan";
+let selectedRoomId = null;
+
+/* ---------- Scene setup ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1b23);
+scene.fog = new THREE.FogExp2(0x0b1b23, 0.012);
+
+const container = document.getElementById('scene');
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.maxPolarAngle = Math.PI/2 - 0.02;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+scene.add(sun);
+
+// Blueprint-style ground grid
+const grid = new THREE.GridHelper(80, 80, 0x1e4a5c, 0x132f3b);
+scene.add(grid);
+const groundMat = new THREE.MeshStandardMaterial({ color:0x0e2129 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(160,160), groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ---------- Build rooms ---------- */
+const meshes = [];
+const roomGroups = {};
+
+function buildRoom(rm){
+  const group = new THREE.Group();
+  const wallMat = getMat(rm.wall || rm.wall_mat);
+  const roofMat = getMat(rm.roof || rm.roof_mat);
+  const t = 0.18;
+
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallMat.color, roughness:0.75 });
+  const roofMaterial = new THREE.MeshStandardMaterial({ color: roofMat.color, roughness:0.6 });
+  const winMaterial = new THREE.MeshStandardMaterial({ color:0x8fd0e8, transparent:true, opacity:0.35 });
+  const doorMaterial = new THREE.MeshStandardMaterial({ color:0x5c3a21, roughness:0.8 });
+
+  function wallPiece(w,h,d,mat){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  const l = Number(rm.l) || 5;
+  const w = Number(rm.w) || 5;
+  const h = Number(rm.h) || 3;
+  const rad = Number(rm.rad) || (l / 2);
+  const gx = Number(rm.gx !== undefined ? rm.gx : (rm.x !== undefined ? rm.x : 0));
+  const gy = Number(rm.gy !== undefined ? rm.gy : (rm.y !== undefined ? -rm.y : 0));
+  const shape = rm.shape || 'Box';
+
+  if (shape === 'Box' || shape === 'Rectangular Box') {
+    const north = wallPiece(l, h, t, wallMaterial); north.position.set(0, h/2, -w/2);
+    const south = wallPiece(l, h, t, wallMaterial); south.position.set(0, h/2,  w/2);
+    const west  = wallPiece(t, h, w, wallMaterial);  west.position.set(-l/2, h/2, 0);
+    const east  = wallPiece(t, h, w, wallMaterial);  east.position.set( l/2, h/2, 0);
+    group.add(north, south, west, east);
+
+    const winCount = rm.windows !== undefined ? Number(rm.windows) : 2;
+    for(let i=0; i<winCount; i++){
+      const win = wallPiece(Math.min(1.0, l / (winCount + 1)), 0.9, t+0.05, winMaterial);
+      const spacing = l / (winCount + 1);
+      win.position.set(-l/2 + spacing * (i+1), h * 0.55, w/2);
+      group.add(win);
+    }
+
+    const doorCount = rm.doors !== undefined ? Number(rm.doors) : 1;
+    if (doorCount > 0) {
+      const door = wallPiece(0.9, 2.0, t+0.06, doorMaterial);
+      door.position.set(0, 1.0, w/2);
+      group.add(door);
+    }
+
+    const roof = wallPiece(l + 0.35, t, w + 0.35, roofMaterial);
+    roof.position.set(0, h, 0);
+    group.add(roof);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(l, w), new THREE.MeshStandardMaterial({ color:0x16323e }));
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0.02;
+    floor.receiveShadow = true;
+    group.add(floor);
+  } else if (shape === 'Cylinder') {
+    const geo = new THREE.CylinderGeometry(rad, rad, h, 32, 1, true);
+    const cyl = new THREE.Mesh(geo, wallMaterial);
+    cyl.position.y = h / 2;
+    cyl.castShadow = true;
+    cyl.receiveShadow = true;
+    group.add(cyl);
+
+    const rGeo = new THREE.CircleGeometry(rad + 0.2, 32);
+    const roof = new THREE.Mesh(rGeo, roofMaterial);
+    roof.rotation.x = -Math.PI / 2;
+    roof.position.y = h;
+    roof.castShadow = true;
+    group.add(roof);
+
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0.02;
+    floor.receiveShadow = true;
+    group.add(floor);
+  } else if (shape === 'Dome') {
+    const geo = new THREE.SphereGeometry(rad, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const dome = new THREE.Mesh(geo, roofMaterial);
+    dome.position.y = 0;
+    dome.castShadow = true;
+    group.add(dome);
+
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0.02;
+    floor.receiveShadow = true;
+    group.add(floor);
+  } else if (shape === 'Triangular (A-Frame)') {
+    const geo = new THREE.ConeGeometry(l/2, h, 4);
+    const cone = new THREE.Mesh(geo, roofMaterial);
+    cone.position.y = h / 2;
+    cone.rotation.y = Math.PI / 4;
+    cone.castShadow = true;
+    group.add(cone);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(l, w), new THREE.MeshStandardMaterial({ color:0x16323e }));
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0.02;
+    floor.receiveShadow = true;
+    group.add(floor);
+  }
+
+  if (rm.rot) {
+    group.rotation.y = (Number(rm.rot) || 0) * Math.PI / 180;
+  }
+
+  group.position.set(gx, 0, gy);
+  group.children.forEach(c => { c.userData = { roomId: rm.id }; meshes.push(c); });
+  scene.add(group);
+  roomGroups[rm.id] = group;
+}
+
+// Build all rooms from Tab 2
+if (Array.isArray(rooms) && rooms.length > 0) {
+  rooms.forEach(buildRoom);
+}
+
+/* ---------- UI: room list ---------- */
+const listEl = document.getElementById('roomlist-items');
+if (listEl && Array.isArray(rooms)) {
+  rooms.forEach(rm=>{
+    const wallMat = getMat(rm.wall || rm.wall_mat);
+    const row = document.createElement('div');
+    row.className = 'room-row';
+    row.id = 'row-' + rm.id;
+    const hexColor = (wallMat.color || 0x9c4a2e).toString(16).padStart(6, '0');
+    const shapeLabel = (rm.shape === 'Box' || !rm.shape) ? (rm.l + 'm &times; ' + rm.w + 'm') : (rm.shape + ' r=' + (rm.rad||3) + 'm');
+    row.innerHTML = '<span class="room-swatch" style="background:#' + hexColor + '"></span>' +
+      '<span class="rn">' + rm.name + '<small>' + shapeLabel + ' &middot; ' + wallMat.name + '</small></span>';
+    row.addEventListener('mouseenter', ()=> setInspector(rm.id, true));
+    row.addEventListener('mouseleave', ()=> setInspector(selectedRoomId, false));
+    row.addEventListener('click', ()=> focusRoom(rm.id));
+    listEl.appendChild(row);
+  });
+}
+
+/* ---------- Legend of all materials in use ---------- */
+const legendEl = document.getElementById('legend-strip');
+if (legendEl && Array.isArray(rooms)) {
+  const usedKeys = [...new Set(rooms.flatMap(r=>[r.wall || r.wall_mat, r.roof || r.roof_mat]))];
+  usedKeys.forEach(k=>{
+    const m = getMat(k);
+    const item = document.createElement('div');
+    item.className = 'lg-item';
+    const hexColor = (m.color || 0x9c4a2e).toString(16).padStart(6, '0');
+    item.innerHTML = '<span class="lg-swatch" style="background:#' + hexColor + '"></span>' + m.name;
+    legendEl.appendChild(item);
+  });
+}
+
+/* ---------- Inspector panel ---------- */
+function statBlock(mat){
+  return '<div class="mat-stat">Conductivity<b>' + (mat.conductivity !== undefined ? Number(mat.conductivity).toFixed(2) : '0.80') + ' W/mK</b></div>' +
+    '<div class="mat-stat">Density<b>' + (mat.density !== undefined ? Number(mat.density).toLocaleString() : '1800') + ' kg/m&sup3;</b></div>' +
+    '<div class="mat-stat">R-Value<b>' + (mat.rvalue !== undefined ? Number(mat.rvalue).toFixed(1) : '1.5') + ' m&sup2;K/W</b></div>' +
+    '<div class="mat-stat">Cost<b>$' + (mat.cost !== undefined ? Number(mat.cost).toFixed(0) : '35') + '/m&sup2;</b></div>';
+}
+
+function setInspector(roomId, isHover){
+  const panel = document.getElementById('inspector');
+  const emptyMsg = document.getElementById('insp-empty-msg');
+  const body = document.getElementById('insp-body');
+
+  document.querySelectorAll('.room-row').forEach(r=>r.classList.remove('active'));
+
+  if(!roomId){
+    panel.classList.add('empty');
+    emptyMsg.style.display = 'block';
+    body.style.display = 'none';
+    return;
+  }
+
+  const rm = rooms.find(r=>r.id===roomId);
+  if(!rm) return;
+
+  const rowEl = document.getElementById('row-'+roomId);
+  if(rowEl) rowEl.classList.add('active');
+
+  panel.classList.remove('empty');
+  emptyMsg.style.display = 'none';
+  body.style.display = 'block';
+
+  const wallMat = getMat(rm.wall || rm.wall_mat);
+  const roofMat = getMat(rm.roof || rm.roof_mat);
+
+  document.getElementById('insp-room').textContent = rm.name + ' [' + (rm.shape || 'Box') + ']';
+  document.getElementById('insp-wall-name').textContent = wallMat.name;
+  document.getElementById('insp-wall-stats').innerHTML = statBlock(wallMat);
+  document.getElementById('insp-roof-name').textContent = roofMat.name;
+  document.getElementById('insp-roof-stats').innerHTML = statBlock(roofMat);
+
+  const targetT = rm.target_temp !== undefined ? Number(rm.target_temp).toFixed(1) + '&deg;C' : '21.0&deg;C';
+  const passiveT = rm.passive_temp !== undefined ? Number(rm.passive_temp).toFixed(1) + '&deg;C' : '--';
+  const aiW = rm.ai_wall || 'Optimized';
+  const aiR = rm.ai_roof || 'Optimized';
+
+  if (document.getElementById('insp-target-temp')) document.getElementById('insp-target-temp').innerHTML = targetT;
+  if (document.getElementById('insp-passive-temp')) document.getElementById('insp-passive-temp').innerHTML = passiveT;
+  if (document.getElementById('insp-ai-wall')) document.getElementById('insp-ai-wall').textContent = aiW;
+  if (document.getElementById('insp-ai-roof')) document.getElementById('insp-ai-roof').textContent = aiR;
+}
+
+function highlightRoom(id, isHover){
+  Object.values(roomGroups).forEach(g=>{
+    g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(0x000000); });
+  });
+  if(id){
+    const g = roomGroups[id];
+    if(g) g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(isHover?0x1a3a3a:0x2a5555); });
+  }
+}
+
+function focusRoom(id){
+  selectedRoomId = id;
+  highlightRoom(id, false);
+  setInspector(id, false);
+  const rm = rooms.find(r=>r.id===id);
+  if(rm){
+    const gx = Number(rm.gx !== undefined ? rm.gx : (rm.x !== undefined ? rm.x : 0));
+    const gy = Number(rm.gy !== undefined ? rm.gy : (rm.y !== undefined ? -rm.y : 0));
+    const h = Number(rm.h) || 3;
+    controls.target.set(gx, h/2, gy);
+  }
+}
+
+/* ---------- Views ---------- */
+function setView(type){
+  currentView = type;
+  document.querySelectorAll('.viewtabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===type));
+  if(type==='plan'){
+    camera.position.set(0, 30, 20);
+    controls.target.set(0,0,0);
+  } else if(type==='iso'){
+    camera.position.set(24, 20, 24);
+    controls.target.set(0,1,0);
+  } else if(type==='low'){
+    camera.position.set(0, 1.6, 14);
+    controls.target.set(0,1.5,0);
+  }
+  controls.update();
+}
+document.querySelectorAll('.viewtabs button').forEach(b=>{
+  b.addEventListener('click', ()=> setView(b.dataset.view));
+});
+setView('iso');
+
+/* ---------- Raycasting: hover + tooltip ---------- */
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tip = document.getElementById('hover-tip');
+let hoveredId = null;
+
+window.addEventListener('mousemove', (e)=>{
+  mouse.x = (e.clientX/window.innerWidth)*2 - 1;
+  mouse.y = -(e.clientY/window.innerHeight)*2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+
+  if(hits.length>0){
+    const id = hits[0].object.userData.roomId;
+    if(hoveredId !== id){
+      hoveredId = id;
+      highlightRoom(id, true);
+      setInspector(id, true);
+    }
+    const rm = rooms.find(r=>r.id===id);
+    if (rm) {
+      const wallMat = getMat(rm.wall || rm.wall_mat);
+      const roofMat = getMat(rm.roof || rm.roof_mat);
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX+16)+'px';
+      tip.style.top = (e.clientY+16)+'px';
+      const shapeLabel = (rm.shape === 'Box' || !rm.shape) ? (rm.l + 'm &times; ' + rm.w + 'm') : (rm.shape + ' r=' + (rm.rad||3) + 'm');
+      tip.innerHTML = '<div class="ht-title">' + rm.name + ' [' + (rm.shape || 'Box') + ']</div>' +
+        '<div class="ht-row">Dimensions: <b>' + shapeLabel + ' &times; ' + rm.h + 'm</b></div>' +
+        '<div class="ht-row">Target Temp: <b>' + (rm.target_temp !== undefined ? Number(rm.target_temp).toFixed(1) + '&deg;C' : '21.0&deg;C') + '</b></div>' +
+        '<div class="ht-row">Wall: <b>' + wallMat.name + '</b></div>' +
+        '<div class="ht-row">Roof: <b>' + roofMat.name + '</b></div>' +
+        '<div class="ht-row" style="color:#5fd4d0; margin-top:4px;">&#10024; AI Best: <b>' + (rm.ai_wall || 'Optimized') + ' / ' + (rm.ai_roof || 'Optimized') + '</b></div>';
+    }
+  } else {
+    if(hoveredId){
+      hoveredId = null;
+      highlightRoom(selectedRoomId, false);
+      setInspector(selectedRoomId, false);
+    }
+    tip.style.display = 'none';
+  }
+});
+
+window.addEventListener('mousedown', (e)=>{
+  if(e.target.tagName !== 'CANVAS') return;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+  if(hits.length>0){
+    focusRoom(hits[0].object.userData.roomId);
+  } else {
+    selectedRoomId = null;
+    highlightRoom(null,false);
+    setInspector(null,false);
+  }
+});
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Immediately hide loading overlay
+try {
+  const ld = document.getElementById('loading');
+  if (ld) ld.style.display = 'none';
+} catch(e) {}
+
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

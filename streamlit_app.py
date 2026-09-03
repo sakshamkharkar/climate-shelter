@@ -587,7 +587,8 @@ with tab2:
                 floor_area = 0
                 volume = 0
                 sum_temp_vol = 0
-                
+                
+
                 
                 for i in range(num_rooms):
                     st.markdown(f"**Room {i+1}**")
@@ -810,7 +811,7 @@ with tab2:
                 ))
             # Render the parametric 3D Plotly architecture (supports multi-room, roofs, windows)
             fig.update_layout(scene=dict(aspectmode="data"), margin=dict(l=0, r=0, b=0, t=0), showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             st.markdown("---")
             
@@ -951,7 +952,7 @@ with tab2:
             st.subheader("Room-by-Room Baseline Performance (No AC)")
             st.write(f"Using selected materials: **{wall_material} walls** and **{roof_material} roof**")
             for idx, rm in enumerate(rooms_data):
-                if rm['vol'] <= 0: continue
+                if rm.get('vol', 1) <= 0: rm['vol'] = 1.0  # prevent skip
                 vol_ratio = rm['vol'] / max(volume, 1e-6)
                 wall_ratio = rm['wall'] / max(wall_area, 1e-6)
                 r_win = total_window_area * wall_ratio
@@ -1020,7 +1021,7 @@ with tab2:
             total_solar = 0
             
             for idx, rm in enumerate(rooms_data):
-                if rm['vol'] <= 0: continue
+                if rm.get('vol', 1) <= 0: rm['vol'] = 1.0  # prevent skip
                 # Apportion
                 vol_ratio = rm['vol'] / max(volume, 1e-6)
                 wall_ratio = rm['wall'] / max(wall_area, 1e-6)
@@ -1117,7 +1118,7 @@ with tab2:
             "GWP (kg CO2-eq)": "{:,.0f}",
             "Total Cost (₹)": "₹{:,.2f}",
             "Embodied Energy (MJ)": "{:,.0f}"
-        }), use_container_width=True)
+        }), width='stretch')
         
         baseline = [c for c in comp_data if c["Wall Material"] == "Concrete (Standard)"][0]["Net Energy (kWh/yr)"]
         lowest_energy = df.iloc[0]["Net Energy (kWh/yr)"]
@@ -1210,23 +1211,24 @@ with tab3:
         st.markdown("---")
         st.header("🏆 Most Optimal Passive Material Strategy")
 
-        # Auto-fill rooms_data for Single Room mode so the 3D Engine works universally
-        if not rooms_data and build_mode != "Multi-Room (Modular)":
+        # Auto-fill rooms_data for ANY mode so the 3D Engine always works
+        if not rooms_data:
+            _ss = st.session_state
             rooms_data = [{
-                'x': 0.0, 'y': 0.0, 
-                'l': float(locals().get('b_length', 5.0)), 
-                'w': float(locals().get('b_width', 5.0)), 
-                'h': float(locals().get('b_height', 3.0)),
-                'shape': 'Box' if locals().get('b_shape', 'Rectangular Box') == 'Rectangular Box' else ('Dome' if locals().get('b_shape') == 'Dome' else 'Cylinder'),
-                'rad': float(locals().get('b_radius', 5.0)),
+                'x': 0.0, 'y': 0.0,
+                'l': float(_ss.get('b_length', 5.0)),
+                'w': float(_ss.get('b_width', 5.0)),
+                'h': float(_ss.get('b_height', 3.0)),
+                'shape': 'Box',
+                'rad': float(_ss.get('b_radius', 3.0)),
                 'rot': 0,
-                'wall_mat': locals().get('wall_material', 'Brick (Solid)'),
-                'roof_mat': locals().get('roof_material', 'Wood (Softwood)'),
-                'temp': locals().get('optimal_temp', 21.0),
-                'vol': locals().get('volume', 75.0),
-                'wall': locals().get('wall_area', 60.0),
-                'roof': locals().get('roof_area', 25.0),
-                'roof_proj': locals().get('roof_area', 25.0)
+                'wall_mat': _ss.get('wall_mat_input', 'Brick (Solid)'),
+                'roof_mat': _ss.get('roof_mat_input', 'Wood (Softwood)'),
+                'temp': float(_ss.get('target_temp', 21.0)),
+                'vol': max(1.0, float(_ss.get('b_length', 5.0)) * float(_ss.get('b_width', 5.0)) * float(_ss.get('b_height', 3.0))),
+                'wall': max(1.0, 2 * (float(_ss.get('b_length', 5.0)) + float(_ss.get('b_width', 5.0))) * float(_ss.get('b_height', 3.0))),
+                'roof': max(1.0, float(_ss.get('b_length', 5.0)) * float(_ss.get('b_width', 5.0))),
+                'roof_proj': max(1.0, float(_ss.get('b_length', 5.0)) * float(_ss.get('b_width', 5.0))),
             }]
 
         
@@ -1304,7 +1306,7 @@ with tab3:
             
             three_data = []
             for idx, rm in enumerate(rooms_data):
-                if rm['vol'] <= 0: continue
+                if rm.get('vol', 1) <= 0: rm['vol'] = 1.0  # prevent skip
                 bw, br, bt = find_best_passive_materials(
                     rm["temp"], rm["wall"], rm["roof"], rm["roof_proj"], rm["vol"],
                     wall_thickness, roof_thickness, h_in, h_out, wall_area, volume,
@@ -1321,21 +1323,116 @@ with tab3:
                 num_doors = max(0, int(round(room_door_area / 2.1)))
                 
                 three_data.append({
-                    "id": idx + 1,
-                    "name": f"Room {idx+1}",
-                    "x": rm['x'], "y": rm['y'], "l": rm['l'], "w": rm['w'], "h": rm['h'],
-                    "shape": rm['shape'], "rad": rm.get('rad', 5), "rot": rm.get('rot', 0),
-                    "wall_mat": rm['wall_mat'],
-                    "roof_mat": rm['roof_mat'],
+                    "id": f"r{idx+1}",
+                    "name": rm.get('name', f"Room {idx+1}"),
+                    "gx": float(rm.get('x', 0.0)),
+                    "gy": -float(rm.get('y', 0.0)),
+                    "x": float(rm.get('x', 0.0)),
+                    "y": float(rm.get('y', 0.0)),
+                    "l": float(rm.get('l', 5.0)),
+                    "w": float(rm.get('w', 5.0)),
+                    "h": float(rm.get('h', 3.0)),
+                    "shape": rm.get('shape', 'Box'),
+                    "rad": float(rm.get('rad', 3.0)),
+                    "rot": float(rm.get('rot', 0.0)),
+                    "wall": rm.get('wall_mat', 'Brick (Solid)'),
+                    "roof": rm.get('roof_mat', 'Wood (Softwood)'),
+                    "wall_mat": rm.get('wall_mat', 'Brick (Solid)'),
+                    "roof_mat": rm.get('roof_mat', 'Wood (Softwood)'),
                     "ai_wall": bw,
                     "ai_roof": br,
-                    "target_temp": rm['temp'],
-                    "passive_temp": bt,
+                    "target_temp": float(rm.get('temp', optimal_temp)),
+                    "passive_temp": float(bt),
+                    "windows": num_windows,
+                    "doors": num_doors,
                     "num_windows": num_windows,
                     "num_doors": num_doors
                 })
                 
             three_data_json = json.dumps(three_data)
+
+
+            # ─── AI ROOM ARRANGEMENT OPTIMIZER ───────────────────────────────
+            def optimize_room_arrangement(rooms, climate_hot):
+                import math
+                def heat_class(name):
+                    n = name.lower()
+                    if any(k in n for k in ['bed', 'sleep', 'office', 'study']): return 'stable'
+                    if any(k in n for k in ['living', 'lounge', 'dining']): return 'warm'
+                    if any(k in n for k in ['kitchen', 'cook']): return 'hot'
+                    return 'buffer'
+                zones = ['N', 'E', 'S', 'W']
+                if climate_hot:
+                    zone_score = {'N': 4, 'E': 3, 'W': 2, 'S': 1}
+                else:
+                    zone_score = {'S': 4, 'E': 3, 'W': 2, 'N': 1}
+                class_zone_pref = {
+                    'stable': ['N','E'] if climate_hot else ['S','E'],
+                    'warm':   ['S','E'] if not climate_hot else ['N','W'],
+                    'hot':    ['N','W'] if climate_hot else ['E','W'],
+                    'buffer': ['W','N'] if climate_hot else ['N','W'],
+                }
+                used_zones = {}
+                result = {}
+                sorted_rooms = sorted(rooms, key=lambda r: ['stable','warm','hot','buffer'].index(heat_class(r['name'])))
+                for rm in sorted_rooms:
+                    hc = heat_class(rm['name'])
+                    preferred = class_zone_pref[hc]
+                    assigned = None
+                    for z in preferred:
+                        if used_zones.get(z, 0) < 2:
+                            assigned = z
+                            used_zones[z] = used_zones.get(z, 0) + 1
+                            break
+                    if assigned is None:
+                        for z in zones:
+                            if used_zones.get(z, 0) < 2:
+                                assigned = z; used_zones[z] = used_zones.get(z,0)+1; break
+                    if assigned is None:
+                        assigned = zones[0]
+                    base_wwr = {'stable': 0.25, 'warm': 0.35, 'hot': 0.20, 'buffer': 0.10}
+                    wwr = base_wwr[hc]
+                    if climate_hot and assigned == 'S': wwr = max(0.10, wwr - 0.10)
+                    if not climate_hot and assigned == 'N': wwr = max(0.10, wwr - 0.10)
+                    if rm['shape'] == 'Box':
+                        wall_area_for_windows = (rm['l'] + rm['w']) * rm['h']
+                    else:
+                        wall_area_for_windows = 2 * math.pi * rm.get('rad', 3) * rm['h'] * 0.5
+                    window_area = wwr * wall_area_for_windows
+                    rec_windows = max(1, round(window_area / 1.2))
+                    zone_color = {'N': '#4fc3f7', 'S': '#ef5350', 'E': '#ffa726', 'W': '#66bb6a'}
+                    energy_save_pct = zone_score[assigned] * 3
+                    result[rm['id']] = {
+                        'zone': assigned,
+                        'heat_class': hc,
+                        'wwr': round(wwr, 2),
+                        'rec_windows': rec_windows,
+                        'rec_doors': 1,
+                        'zone_color': zone_color[assigned],
+                        'energy_save_pct': energy_save_pct,
+                    }
+                return result
+
+            _wd_safe = st.session_state.get('weather_data', {})
+            avg_t = 30
+            try:
+                _wd_vals = _wd_safe.get('T2M_MAX', None)
+                if _wd_vals is not None and len(_wd_vals) > 0:
+                    avg_t = float(list(_wd_vals.values())[0]) if isinstance(_wd_vals, dict) else float(_wd_vals[0])
+            except Exception:
+                avg_t = 30
+            climate_is_hot = float(avg_t) > 24
+            ai_arrangement = optimize_room_arrangement(three_data, climate_is_hot)
+            for td in three_data:
+                opt = ai_arrangement.get(td['id'], {})
+                td['ai_zone']         = opt.get('zone', 'N')
+                td['ai_zone_color']   = opt.get('zone_color', '#888888')
+                td['ai_heat_class']   = opt.get('heat_class', 'stable')
+                td['ai_wwr']          = opt.get('wwr', 0.25)
+                td['ai_rec_windows']  = opt.get('rec_windows', 2)
+                td['ai_rec_doors']    = opt.get('rec_doors', 1)
+                td['ai_energy_save']  = opt.get('energy_save_pct', 5)
+            # ─────────────────────────────────────────────────────────────────
 
             import json
             m_colors = {
@@ -1350,478 +1447,73 @@ with tab3:
                 "Adobe/Earth": 0xa0522d,
                 "Stone (Granite/Limestone)": 0x696969
             }
+            m_colors = {
+                "Brick (Solid)": 0x9c4a2e,
+                "Brick (Hollow)": 0xbd6243,
+                "Concrete (Standard)": 0x7c7f82,
+                "Concrete (Aerated)": 0x9fa3a6,
+                "Wood (Softwood)": 0xc79a5b,
+                "Wood (Hardwood)": 0x8b5a2b,
+                "Glass (Single Pane)": 0xadd8e6,
+                "Glass (Double Pane)": 0x8fd0e8,
+                "Steel (Galvanized)": 0x6c7a89,
+                "Aluminum (Sheet)": 0xa8b4c0,
+                "EPS Insulation": 0xe9e6d8,
+                "SIPs (Insulated Panels)": 0xe9e6d8,
+                "Straw Bale": 0xdaa520,
+                "Adobe / Mudbrick": 0xa0522d,
+                "Rammed Earth": 0x8f5a3c,
+                "Stone (Granite/Marble)": 0x5c6166,
+                "Bamboo": 0x7a9a5b
+            }
             mats_js = {}
             for m_name, m_props in MATERIALS.items():
-                mats_js[m_name] = {
+                u_val = float(m_props.get("u_value", 1.0))
+                dens = float(m_props.get("density", 1800))
+                cost_kg = float(m_props.get("cost_per_kg", 0.5))
+                # Conductivity k ~ u * d (est 0.2m wall)
+                k_val = round(u_val * 0.2, 2)
+                r_val = round(1.0 / max(u_val, 0.01), 2)
+                cost_sqm = round(cost_kg * dens * 0.2 * 0.1, 1) + 15.0
+
+                mat_entry = {
                     "name": m_name,
-                    "color": m_colors.get(m_name, 0x888888),
-                    "u_value": m_props["u_value"],
-                    "density": m_props["density"],
-                    "cost": m_props.get("cost_per_kg", 0),
-                    "gwp": m_props["gwp"]
+                    "color": m_colors.get(m_name, 0x7c7f82),
+                    "conductivity": k_val,
+                    "density": dens,
+                    "rvalue": r_val,
+                    "cost": cost_sqm,
+                    "u_value": u_val,
+                    "gwp": float(m_props.get("gwp", 0.0))
                 }
+                mats_js[m_name] = mat_entry
+                # Also add clean short aliases
+                short_k = m_name.split("(")[0].strip().lower()
+                mats_js[short_k] = mat_entry
+
+            # Add default template keys
+            mats_js["timber"] = mats_js.get("wood", mats_js.get("Wood (Softwood)"))
+            mats_js["brick"] = mats_js.get("Brick (Solid)")
+            mats_js["concrete"] = mats_js.get("Concrete (Standard)")
+            mats_js["glass_double"] = mats_js.get("Glass (Double Pane)")
+            mats_js["steel_panel"] = mats_js.get("Steel (Galvanized)")
+            mats_js["clay_tile"] = mats_js.get("Brick (Solid)")
+            mats_js["eps"] = mats_js.get("EPS Insulation", mats_js.get("SIPs (Insulated Panels)"))
+            mats_js["slate"] = mats_js.get("Stone (Granite/Marble)")
+            mats_js["green_roof"] = mats_js.get("Straw Bale")
+
             materials_json = json.dumps(mats_js)
             
             # Using replacement on a raw string to avoid f-string {} brace escaping issues with CSS/JS
-            html_code = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Floor Plan & Material Dashboard</title>
-<style>
-  :root{
-    --ink:#0b1b23;
-    --panel:#0f2530;
-    --panel-line:#1e4a5c;
-    --grid:#132f3b;
-    --cyan:#5fd4d0;
-    --amber:#e8a94f;
-    --paper:#eef4f2;
-    --paper-dim:#9db4b9;
-    --danger:#e0684f;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;background:var(--ink);font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;color:var(--paper);}
-  #scene{position:absolute;inset:0;}
 
-  /* Top strip */
-  #topbar{
-    position:absolute;top:0;left:0;right:0;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:14px 22px;
-    background:linear-gradient(180deg,rgba(11,27,35,.95),rgba(11,27,35,0));
-    pointer-events:none;
-  }
-  #topbar .title{
-    pointer-events:auto;
-    font-size:15px;letter-spacing:.02em;color:var(--paper);
-  }
-  #topbar .title b{color:var(--cyan);font-weight:600;}
-  #topbar .title small{display:block;color:var(--paper-dim);font-size:11.5px;margin-top:2px;}
-
-  .viewtabs{pointer-events:auto;display:flex;gap:2px;background:var(--panel);border:1px solid var(--panel-line);border-radius:3px;overflow:hidden;}
-  .viewtabs button{
-    background:transparent;border:none;color:var(--paper-dim);
-    padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit;
-    border-right:1px solid var(--panel-line);
-  }
-  .viewtabs button:last-child{border-right:none;}
-  .viewtabs button:hover{color:var(--paper);background:rgba(95,212,208,.08);}
-  .viewtabs button.active{color:var(--ink);background:var(--cyan);}
-
-  /* Left: room legend / arrangement list */
-  #roomlist{
-    position:absolute;left:18px;top:78px;bottom:18px;width:230px;
-    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
-    padding:14px;overflow-y:auto;
-  }
-  #roomlist h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);font-weight:600;text-transform:uppercase;}
-  .room-row{
-    display:flex;align-items:center;gap:9px;padding:8px 6px;border-radius:3px;cursor:pointer;
-    border-left:3px solid transparent;margin-bottom:2px;
-  }
-  .room-row:hover{background:rgba(95,212,208,.08);}
-  .room-row.active{background:rgba(95,212,208,.14);border-left-color:var(--cyan);}
-  .room-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.25);}
-  .room-row .rn{font-size:13px;}
-  .room-row .rn small{display:block;color:var(--paper-dim);font-size:10.5px;}
-
-  /* Right: material inspector, populated on hover */
-  #inspector{
-    position:absolute;right:18px;top:78px;width:280px;
-    background:rgba(15,37,48,.92);border:1px solid var(--panel-line);border-radius:4px;
-    padding:16px;transition:opacity .12s ease;
-  }
-  #inspector.empty{opacity:.55;}
-  #inspector h4{margin:0 0 4px;font-size:11px;letter-spacing:.08em;color:var(--paper-dim);text-transform:uppercase;font-weight:600;}
-  #insp-room{font-size:16px;color:var(--cyan);margin:0 0 12px;font-weight:600;}
-  #insp-empty-msg{font-size:12.5px;color:var(--paper-dim);line-height:1.5;}
-  .mat-block{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--panel-line);}
-  .mat-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
-  .mat-label{font-size:10px;color:var(--amber);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
-  .mat-name{font-size:14px;margin-bottom:8px;color:var(--paper);}
-  .mat-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;}
-  .mat-stat{font-size:11px;color:var(--paper-dim);}
-  .mat-stat b{display:block;color:var(--paper);font-size:13px;font-variant-numeric:tabular-nums;}
-
-  /* Floating hover tooltip in 3D space */
-  #hover-tip{
-    position:absolute;pointer-events:none;display:none;
-    background:var(--ink);border:1px solid var(--cyan);border-radius:3px;
-    padding:8px 10px;font-size:11.5px;color:var(--paper);z-index:50;
-    box-shadow:0 6px 18px rgba(0,0,0,.5);
-  }
-  #hover-tip .ht-title{color:var(--cyan);font-weight:600;margin-bottom:2px;}
-  #hover-tip .ht-row{color:var(--paper-dim);}
-  #hover-tip .ht-row b{color:var(--paper);}
-
-  #loading{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    background:var(--ink);color:var(--paper-dim);font-size:13px;letter-spacing:.05em;z-index:200;
-  }
-
-  #legend-strip{
-    position:absolute;left:18px;right:320px;bottom:18px;
-    background:rgba(15,37,48,.88);border:1px solid var(--panel-line);border-radius:4px;
-    padding:10px 14px;display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--paper-dim);
-  }
-  #legend-strip .lg-item{display:flex;align-items:center;gap:6px;}
-  #legend-strip .lg-swatch{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.25);}
-
-  ::-webkit-scrollbar{width:6px;}
-  ::-webkit-scrollbar-thumb{background:var(--panel-line);border-radius:3px;}
-</style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-</head>
-<body>
-<div id="loading">Laying out the floor plan...</div>
-<div id="scene"></div>
-
-<div id="topbar">
-  <div class="title"><b>Floor Plan</b> &amp; Material Arrangement<small>Hover any room to inspect its wall &amp; roof material</small></div>
-  <div class="viewtabs">
-    <button data-view="plan" class="active">Plan</button>
-    <button data-view="iso">Isometric</button>
-    <button data-view="low">Walk-through</button>
-  </div>
-</div>
-
-<div id="roomlist"><h4>Rooms</h4><div id="roomlist-items"></div></div>
-
-<div id="inspector" class="empty">
-  <h4>Material Inspector</h4>
-  <div id="insp-empty-msg">Hover over a room in the plan to see its wall and roof material specifications.</div>
-  <div id="insp-body" style="display:none;">
-    <div id="insp-room"></div>
-    <div class="mat-block">
-      <div class="mat-label">Wall Material</div>
-      <div class="mat-name" id="insp-wall-name"></div>
-      <div class="mat-stats" id="insp-wall-stats"></div>
-    </div>
-    <div class="mat-block">
-      <div class="mat-label">Roof Material</div>
-      <div class="mat-name" id="insp-roof-name"></div>
-      <div class="mat-stats" id="insp-roof-stats"></div>
-    </div>
-    <div class="mat-block" style="border-top: 1px solid var(--panel-line); padding-top: 12px;">
-      <div class="mat-label" style="color:var(--cyan);"> AI Optimization</div>
-      <div class="mat-stats">
-        <div class="mat-stat">Target Temp<b id="insp-temp"></b></div>
-        <div class="mat-stat">Best Wall<b id="insp-ai-wall"></b></div>
-        <div class="mat-stat">Best Roof<b id="insp-ai-roof"></b></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="legend-strip"></div>
-<div id="hover-tip"></div>
-
-<script>
-const materials = __MATERIALS_JSON__;
-const rooms = __ROOMS_JSON__;
-
-let currentView = "plan";
-let selectedRoomId = null;
-
-/* ---------- Scene setup ---------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1b23);
-scene.fog = new THREE.FogExp2(0x0b1b23, 0.012);
-
-const container = document.getElementById('scene');
-const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.07;
-controls.maxPolarAngle = Math.PI/2 - 0.02;
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-const sun = new THREE.DirectionalLight(0xffffff, 0.85);
-sun.position.set(30, 50, 20);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048,2048);
-sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
-sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
-scene.add(sun);
-
-// Blueprint-style ground grid
-const grid = new THREE.GridHelper(80, 80, 0x1e4a5c, 0x132f3b);
-scene.add(grid);
-const groundMat = new THREE.MeshStandardMaterial({ color:0x0e2129 });
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(160,160), groundMat);
-ground.rotation.x = -Math.PI/2;
-ground.position.y = -0.01;
-ground.receiveShadow = true;
-scene.add(ground);
-
-/* ---------- Build rooms ---------- */
-const meshes = [];
-const roomGroups = {};
-
-function buildRoom(rm){
-  const group = new THREE.Group();
-  const wallMat = materials[rm.wall_mat];
-  const roofMat = materials[rm.roof_mat];
-  const t = 0.18;
-
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallMat.color, roughness:0.75 });
-  const roofMaterial = new THREE.MeshStandardMaterial({ color: roofMat.color, roughness:0.6 });
-  const winMaterial = new THREE.MeshStandardMaterial({ color:0x8fd0e8, transparent:true, opacity:0.35 });
-
-  function wallPiece(w,h,d,mat){
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    m.castShadow = true; m.receiveShadow = true;
-    return m;
-  }
-
-  // Adjust rotations to map correctly
-  rm.gx = rm.x;
-  rm.gy = -rm.y;
-
-  if (rm.shape === 'Box' || !rm.shape) {
-      const north = wallPiece(rm.l, rm.h, t, wallMaterial); north.position.set(0, rm.h/2, -rm.w/2);
-      const south = wallPiece(rm.l, rm.h, t, wallMaterial); south.position.set(0, rm.h/2,  rm.w/2);
-      const west  = wallPiece(t, rm.h, rm.w, wallMaterial);  west.position.set(-rm.l/2, rm.h/2, 0);
-      const east  = wallPiece(t, rm.h, rm.w, wallMaterial);  east.position.set( rm.l/2, rm.h/2, 0);
-      group.add(north, south, west, east);
-
-      for(let i=0; i<(rm.num_windows || 2); i++){
-        const win = wallPiece(0.9, 0.9, t+0.05, winMaterial);
-        const spacing = rm.l / ((rm.num_windows||2)+1);
-        win.position.set(-rm.l/2 + spacing*(i+1), rm.h*0.55, rm.w/2);
-        group.add(win);
-      }
-
-      const roof = wallPiece(rm.l+0.35, t, rm.w+0.35, roofMaterial);
-      roof.position.set(0, rm.h, 0);
-      group.add(roof);
-
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(rm.l, rm.w), new THREE.MeshStandardMaterial({ color:0x16323e }));
-      floor.rotation.x = -Math.PI/2;
-      floor.position.y = 0.02;
-      floor.receiveShadow = true;
-      group.add(floor);
-  } else if (rm.shape === 'Cylinder') {
-      const geo = new THREE.CylinderGeometry(rm.rad, rm.rad, rm.h, 32, 1, true);
-      const mat = new THREE.MeshStandardMaterial({ color: wallMat.color, side: THREE.DoubleSide });
-      const m = new THREE.Mesh(geo, mat); m.position.y = rm.h/2; m.castShadow = true; group.add(m);
-      
-      const rGeo = new THREE.CircleGeometry(rm.rad + 0.2, 32);
-      const rMat = new THREE.MeshStandardMaterial({ color: roofMat.color });
-      const rMesh = new THREE.Mesh(rGeo, rMat);
-      rMesh.rotation.x = -Math.PI / 2; rMesh.position.y = rm.h; group.add(rMesh);
-      
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(rm.rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
-      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
-  } else if (rm.shape === 'Dome') {
-      const geo = new THREE.SphereGeometry(rm.rad, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-      const mat = new THREE.MeshStandardMaterial({ color: roofMat.color, side: THREE.DoubleSide });
-      const m = new THREE.Mesh(geo, mat); m.castShadow = true; group.add(m);
-      
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(rm.rad, 32), new THREE.MeshStandardMaterial({ color:0x16323e }));
-      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
-  } else if (rm.shape === 'Triangular (A-Frame)') {
-      const geo = new THREE.ConeGeometry(rm.l/2, rm.h, 4);
-      const mat = new THREE.MeshStandardMaterial({ color: roofMat.color });
-      const m = new THREE.Mesh(geo, mat); m.rotation.y = Math.PI / 4; m.castShadow = true; m.position.y = rm.h/2; group.add(m);
-      
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(rm.l, rm.l), new THREE.MeshStandardMaterial({ color:0x16323e }));
-      floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
-  }
-
-  group.position.set(rm.gx, 0, rm.gy);
-  group.rotation.y = THREE.MathUtils.degToRad(-(rm.rot || 0));
-  group.children.forEach(c => { c.userData = { roomId: rm.id }; meshes.push(c); });
-  scene.add(group);
-  roomGroups[rm.id] = group;
-}
-
-rooms.forEach(buildRoom);
-
-/* ---------- UI: room list ---------- */
-const listEl = document.getElementById('roomlist-items');
-rooms.forEach(rm=>{
-  const row = document.createElement('div');
-  row.className = 'room-row';
-  row.id = 'row-' + rm.id;
-  row.innerHTML = `<span class="room-swatch" style="background:#${materials[rm.wall_mat].color.toString(16).padStart(6,'0')}"></span>
-    <span class="rn">${rm.name}<small>${rm.shape==='Box'?rm.l+'m × '+rm.w+'m': 'Rad '+rm.rad+'m'} · ${materials[rm.wall_mat].name}</small></span>`;
-  row.addEventListener('mouseenter', ()=> setInspector(rm.id, true));
-  row.addEventListener('mouseleave', ()=> setInspector(selectedRoomId, false));
-  row.addEventListener('click', ()=> focusRoom(rm.id));
-  listEl.appendChild(row);
-});
-
-/* ---------- Legend of all materials in use ---------- */
-const legendEl = document.getElementById('legend-strip');
-const usedKeys = [...new Set(rooms.flatMap(r=>[r.wall_mat, r.roof_mat]))];
-usedKeys.forEach(k=>{
-  const m = materials[k];
-  const item = document.createElement('div');
-  item.className = 'lg-item';
-  item.innerHTML = `<span class="lg-swatch" style="background:#${m.color.toString(16).padStart(6,'0')}"></span>${m.name}`;
-  legendEl.appendChild(item);
-});
-
-/* ---------- Inspector panel ---------- */
-function statBlock(mat){
-  return `
-    <div class="mat-stat">U-Value<b>${mat.u_value.toFixed(2)} W/m²K</b></div>
-    <div class="mat-stat">Density<b>${mat.density.toLocaleString()} kg/m³</b></div>
-    <div class="mat-stat">GWP<b>${mat.gwp.toFixed(1)} kgCO2e</b></div>
-    <div class="mat-stat">Cost<b>$${mat.cost}/m²</b></div>
-  `;
-}
-
-function setInspector(roomId, isHover){
-  const panel = document.getElementById('inspector');
-  const emptyMsg = document.getElementById('insp-empty-msg');
-  const body = document.getElementById('insp-body');
-
-  document.querySelectorAll('.room-row').forEach(r=>r.classList.remove('active'));
-
-  if(!roomId){
-    panel.classList.add('empty');
-    emptyMsg.style.display = 'block';
-    body.style.display = 'none';
-    return;
-  }
-
-  const rm = rooms.find(r=>r.id===roomId);
-  if(!rm) return;
-
-  const rowEl = document.getElementById('row-'+roomId);
-  if(rowEl) rowEl.classList.add('active');
-
-  panel.classList.remove('empty');
-  emptyMsg.style.display = 'none';
-  body.style.display = 'block';
-
-  document.getElementById('insp-room').textContent = rm.name;
-  document.getElementById('insp-wall-name').textContent = materials[rm.wall_mat].name;
-  document.getElementById('insp-wall-stats').innerHTML = statBlock(materials[rm.wall_mat]);
-  document.getElementById('insp-roof-name').textContent = materials[rm.roof_mat].name;
-  document.getElementById('insp-roof-stats').innerHTML = statBlock(materials[rm.roof_mat]);
-  
-  document.getElementById('insp-temp').textContent = (rm.target_temp||0).toFixed(1) + ' °C';
-  document.getElementById('insp-ai-wall').textContent = rm.ai_wall || 'N/A';
-  document.getElementById('insp-ai-roof').textContent = rm.ai_roof || 'N/A';
-}
-
-function highlightRoom(id, isHover){
-  Object.values(roomGroups).forEach(g=>{
-    g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(0x000000); });
-  });
-  if(id){
-    const g = roomGroups[id];
-    if(g) g.children.forEach(c=>{ if(c.material && c.material.emissive) c.material.emissive.setHex(isHover?0x1a3a3a:0x2a5555); });
-  }
-}
-
-function focusRoom(id){
-  selectedRoomId = id;
-  highlightRoom(id, false);
-  setInspector(id, false);
-  const rm = rooms.find(r=>r.id===id);
-  if(rm){ controls.target.set(rm.gx, rm.h/2, rm.gy); }
-}
-
-/* ---------- Views ---------- */
-function setView(type){
-  currentView = type;
-  document.querySelectorAll('.viewtabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===type));
-  if(type==='plan'){
-    camera.position.set(0, 35, 10);
-    controls.target.set(0,0,0);
-  } else if(type==='iso'){
-    camera.position.set(24, 20, 24);
-    controls.target.set(0,1,0);
-  } else if(type==='low'){
-    camera.position.set(0, 1.6, 14);
-    controls.target.set(0,1.5,0);
-  }
-  controls.update();
-}
-document.querySelectorAll('.viewtabs button').forEach(b=>{
-  b.addEventListener('click', ()=> setView(b.dataset.view));
-});
-setView('iso');
-
-/* ---------- Raycasting: hover + tooltip ---------- */
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-const tip = document.getElementById('hover-tip');
-let hoveredId = null;
-
-window.addEventListener('mousemove', (e)=>{
-  mouse.x = (e.clientX/window.innerWidth)*2 - 1;
-  mouse.y = -(e.clientY/window.innerHeight)*2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(meshes);
-
-  if(hits.length>0){
-    const id = hits[0].object.userData.roomId;
-    if(hoveredId !== id){
-      hoveredId = id;
-      highlightRoom(id, true);
-      setInspector(id, true);
-    }
-    const rm = rooms.find(r=>r.id===id);
-    tip.style.display = 'block';
-    tip.style.left = (e.clientX+16)+'px';
-    tip.style.top = (e.clientY+16)+'px';
-    tip.innerHTML = `<div class="ht-title">${rm.name}</div>
-      <div class="ht-row">Wall: <b>${materials[rm.wall_mat].name}</b></div>
-      <div class="ht-row">Roof: <b>${materials[rm.roof_mat].name}</b></div>`;
-  } else {
-    if(hoveredId){
-      hoveredId = null;
-      highlightRoom(selectedRoomId, false);
-      setInspector(selectedRoomId, false);
-    }
-    tip.style.display = 'none';
-  }
-});
-
-window.addEventListener('mousedown', (e)=>{
-  if(e.target.tagName !== 'CANVAS') return;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(meshes);
-  if(hits.length>0){
-    focusRoom(hits[0].object.userData.roomId);
-  } else {
-    selectedRoomId = null;
-    highlightRoom(null,false);
-    setInspector(null,false);
-  }
-});
-
-window.addEventListener('resize', ()=>{
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-document.getElementById('loading').style.display = 'none';
-
-function animate(){
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-</script>
-</body>
-</html>
-'''.replace('__MATERIALS_JSON__', materials_json).replace('__ROOMS_JSON__', three_data_json)
-            
-            components.html(html_code, height=800, scrolling=False)
+            if not three_data:
+                st.info("Configure your rooms in Tab 2 first, then come back here to see the 3D simulation.")
+            else:
+                with open("ai_floor_plan.html", "r", encoding="utf-8") as _f:
+                    _html_tmpl = _f.read()
+                # Use split-based injection to avoid JSON brace collisions
+                _parts_m = _html_tmpl.split("MATERIALS_PLACEHOLDER")
+                _html_tmpl2 = materials_json.join(_parts_m)
+                _parts_r = _html_tmpl2.split("ROOMS_PLACEHOLDER")
+                html_code = three_data_json.join(_parts_r)
+                components.html(html_code, height=800, scrolling=False)
