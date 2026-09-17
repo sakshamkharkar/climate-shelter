@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Patient Profile Photos & Prescriptions
+    match /patients/{patientId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+
+    // Public Audio Chimes & Assets
+    match /public_assets/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.role == 'manager';
+    }
+  }
+}
