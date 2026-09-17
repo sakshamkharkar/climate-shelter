@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CarePill - Multi-User Elder Care Medication & Security System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar with Multi-User Patient Selector -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-icon">💊</div>
+      <div>
+        <h1 class="logo-title">CarePill</h1>
+        <p class="logo-subtitle">Multi-User Realtime Cloud Sync System</p>
+      </div>
+    </div>
+
+    <!-- Active Patient Selector Dropdown & Add Patient Button -->
+    <div class="patient-selector-container">
+      <span class="selector-label">🌐 ACTIVE PATIENT:</span>
+      <select id="activePatientSelect" onchange="changeActivePatient(this.value)" class="patient-select-dropdown">
+        <option value="pat_1">👵 Eleanor Vance (Cardiology Care)</option>
+        <option value="pat_2">👴 Robert Chen (Diabetes Care)</option>
+        <option value="pat_3">👵 Margaret Taylor (Hypertension Care)</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openAddPatientModal()" style="font-weight:800;">➕ Add New Patient</button>
+    </div>
+
+    <!-- Role Switcher -->
+    <div class="role-switcher">
+      <span class="role-label">ROLE VIEW:</span>
+      <button class="role-btn active" data-role="patient" onclick="switchRole('patient')">👴 Patient</button>
+      <button class="role-btn" data-role="caregiver" onclick="switchRole('caregiver')">👩‍⚕️ Caregiver</button>
+      <button class="role-btn" data-role="family" onclick="switchRole('family')">👨‍👩‍👧 Family</button>
+      <button class="role-btn" data-role="manager" onclick="switchRole('manager')">🏥 Manager</button>
+    </div>
+
+    <!-- User Profile, Sync Status & Emergency Controls -->
+    <div class="header-right">
+      <div class="sync-indicator-pill" id="syncStatusPill" title="Real-time multi-device synchronization active">
+        ⚡ <span id="syncStatusLabel">Realtime Sync Active</span>
+      </div>
+      <div class="user-session-pill" id="userSessionPill" onclick="openStartingLoginModal()">
+        👤 <span id="sessionUserLabel">Eleanor (Patient)</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="openStartingLoginModal()">🔑 Switch Account</button>
+      <button class="btn btn-danger" onclick="triggerEmergencySOS()">🚨 SOS Emergency</button>
+    </div>
+  </header>
+
+  <main class="main-content">
+    
+    <!-- PATIENT VIEW -->
+    <div class="view-section active" id="patientView">
+      
+      <!-- Senior Greeting Banner -->
+      <div class="greeting-banner">
+        <div>
+          <h2>Good Morning, <span id="greetingPatientName">Eleanor</span>! 👋</h2>
+          <p>You have <b><span id="pendingCount">2</span> medicines</b> pending today. <span style="color:#60A5FA; font-weight:700;">⏰ Auto-Clock: <span id="currentTimeDisplay">--:-- --</span></span></p>
+        </div>
+        <div class="adherence-badge-container">
+          <div class="adherence-badge">
+            <span class="adherence-val" id="patientAdherence">90%</span>
+            <span class="adherence-lbl">Dynamic Adherence Rate</span>
+          </div>
+          <div class="missed-count-badge">
+            <span class="missed-val" id="patientMissedCount">3 Times</span>
+            <span class="missed-lbl">Medicines Not Eaten</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multi-User Sync Banner -->
+      <div class="security-bar">
+        <span>🔄 <b>Multi-Device Sync ACTIVE:</b> Changes on Phone 1 reflect on Phone 2 in real time!</span>
+        <span>🔒 <b>AES-256 Multi-Tenant Cloud Vault</b></span>
+        <span>🛡️ <b>TLS 1.3 Encryption Active</b></span>
+      </div>
+
+      <!-- Main Grid Layout -->
+      <div class="dashboard-grid">
+        
+        <!-- Left: Today's Schedule + Live Cross-Device Message Feed -->
+        <div class="grid-card wide">
+          <div class="card-header">
+            <h3>⏰ Today's Medication Schedule for <span class="active-patient-title-name">Eleanor Vance</span></h3>
+            <button class="btn btn-primary btn-lg-add" onclick="openAddMedicineModal()">➕ Add New Medicine</button>
+          </div>
+
+          <div class="med-schedule-list" id="scheduleList">
+            <!-- Dynamic Med Cards rendered here -->
+          </div>
+
+          <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--card-border);">
+
+          <!-- LIVE CROSS-DEVICE MESSAGE & AUDIT FEED IN PATIENT DASHBOARD -->
+          <div class="card-header">
+            <h3>⚡ Live Cross-Device Activity & Message Feed</h3>
+            <span class="badge badge-info">BroadcastChannel & Firestore Sync</span>
+          </div>
+          <div class="activity-feed" id="patientActivityFeed">
+            <!-- Dynamic Patient Audit Logs -->
+          </div>
+        </div>
+
+        <!-- Right: Doctor & Caregiver Contact Hub + Inventory -->
+        <div class="grid-card">
+          
+          <!-- Doctor & Caregiver Contacts -->
+          <div class="card-header">
+            <h3>📞 Caregiver & Doctor Contacts</h3>
+            <button class="btn btn-secondary btn-sm" onclick="openPinModal('editContacts')">✏️ Edit</button>
+          </div>
+
+          <div class="contacts-container">
+            <!-- Primary Doctor Card -->
+            <div class="contact-item">
+              <div class="contact-avatar doctor-av">👨‍⚕️</div>
+              <div class="contact-info">
+                <b id="docName">Dr. Sarah Jenkins</b>
+                <div class="contact-sub" id="docSpecialty">Cardiology Specialist</div>
+                <div class="contact-details">
+                  <span>📱 <a href="#" id="docPhoneLink" onclick="alert('Calling Doctor...')">+1 (555) 234-5678</a></span><br>
+                  <span>✉️ <a href="#" id="docEmailLink" onclick="openSendMessageModal('Doctor')">dr.jenkins@health.org</a></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Caregiver Card -->
+            <div class="contact-item">
+              <div class="contact-avatar caregiver-av">👩‍⚕️</div>
+              <div class="contact-info">
+                <b id="cgName">Mary Higgins (Nurse)</b>
+                <div class="contact-sub">Primary On-Duty Caregiver</div>
+                <div class="contact-details">
+                  <span>📱 <a href="#" id="cgPhoneLink" onclick="alert('Calling Caregiver...')">+1 (555) 876-5432</a></span><br>
+                  <span>✉️ <a href="#" id="cgEmailLink" onclick="openSendMessageModal('Caregiver')">mary.higgins@care.org</a></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Send Direct Message Button -->
+            <button class="btn btn-primary btn-block" style="margin-top: 12px;" onclick="openSendMessageModal('Both')">
+              💬 Send SMS / Email Alert Message
+            </button>
+          </div>
+
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--card-border);">
+
+          <!-- Pill Stock & Inventory -->
+          <div class="card-header">
+            <h3>📦 Pill Stock & Inventory</h3>
+          </div>
+          <div class="inventory-list" id="inventoryList">
+            <!-- Dynamic Inventory Cards -->
+          </div>
+
+          <div class="senior-tools">
+            <h4>Senior Assist Tools</h4>
+            <button class="assist-btn" onclick="toggleSeniorHighContrast()">
+              <span>👁️ High Contrast Mode</span>
+              <span class="toggle-pill" id="contrastBadge">OFF</span>
+            </button>
+            <button class="assist-btn" onclick="toggleVoiceReadSchedule()">
+              <span>🔊 Voice Read Schedule</span>
+              <span class="toggle-pill" id="voiceBadge">OFF</span>
+            </button>
+            <button class="assist-btn" onclick="triggerTestAutoAlarmNow()" style="background:#EFF6FF; border-color:#BFDBFE; color:var(--accent-blue);">
+              <span>⚡ Test Auto-Alarm (Next Pending Dose)</span>
+              <span>🔔 Trigger</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- CAREGIVER VIEW -->
+    <div class="view-section" id="caregiverView">
+      <div class="section-title-bar">
+        <h2>👩‍⚕️ Caregiver Live Monitoring Dashboard</h2>
+        <p>Multi-patient telemetry feeds, missed dose escalation alerts, and cross-device messaging.</p>
+      </div>
+
+      <div class="caregiver-grid">
+        <div class="grid-card">
+          <div class="card-header">
+            <h3>Active Patient: <span id="cgProfilePatientName">Eleanor Vance</span></h3>
+            <button class="btn btn-primary btn-sm" onclick="openAddPatientModal()">➕ Add New Patient</button>
+          </div>
+
+          <div class="compliance-stats">
+            <div class="stat-box">
+              <span class="stat-num" id="cgAdherence" style="color: var(--accent-blue);">90%</span>
+              <span class="stat-label">Calculated Adherence</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num" id="cgTaken" style="color: var(--success-green);">28</span>
+              <span class="stat-label">Doses Taken</span>
+            </div>
+            <div class="stat-box" style="border-color: var(--rose-red); background: #FFF1F2;">
+              <span class="stat-num" id="cgMissed" style="color: var(--rose-red);">3 Times</span>
+              <span class="stat-label">NOT EATEN / MISSED</span>
+            </div>
+          </div>
+
+          <div class="missed-alert-banner" id="missedAlertBanner">
+            ⚠️ <b>Caregiver Alert:</b> Patient has <b><span id="cgMissedAlertCount">3</span> unconsumed doses</b>. Live push alerts broadcasted to all caregiver phones.
+          </div>
+
+          <button class="btn btn-warning btn-block" style="margin-top: 16px;" onclick="openSendMessageModal('Doctor')">
+            ✉️ Send Status Update to Doctor
+          </button>
+        </div>
+
+        <div class="grid-card">
+          <div class="card-header">
+            <h3>⚡ Live Cross-Device Message & Audit Feed</h3>
+            <span class="badge badge-info">BroadcastChannel & Firestore</span>
+          </div>
+          <div class="activity-feed" id="activityFeed">
+            <!-- Dynamic Logs -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAMILY VIEW -->
+    <div class="view-section" id="familyView">
+      <div class="section-title-bar">
+        <h2>👨‍👩‍👧 Family Member Peace-of-Mind View</h2>
+        <p>Real-time updates for loved ones connected across multiple phones and locations.</p>
+      </div>
+
+      <div class="grid-card">
+        <h3>Daily Status Summary for <span class="active-patient-title-name">Eleanor Vance</span></h3>
+        <p style="margin-top: 10px; font-size: 15px; color: var(--text-main);" id="familyStatusText">
+          ⚠️ Patient has taken 28 doses and <b>skipped / missed 3 doses</b>. Calculated real-time adherence rate is <b>90%</b>.
+        </p>
+
+        <button class="btn btn-primary" style="margin-top: 16px;" onclick="openSendMessageModal('Caregiver')">
+          ✉️ Send Note to Primary Caregiver
+        </button>
+      </div>
+    </div>
+
+    <!-- MANAGER VIEW (COMPLETE MULTI-PATIENT LIST & FACILITY ROSTER) -->
+    <div class="view-section" id="managerView">
+      <div class="section-title-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>🏥 Care Manager Multi-Patient Facility Roster</h2>
+          <p>Complete facility resident roster, real-time adherence tracking, doctor/caregiver assignments, and direct profile launcher.</p>
+        </div>
+        <button class="btn btn-primary btn-lg" onclick="openAddPatientModal()" style="font-weight:800;">➕ Register New Patient Profile</button>
+      </div>
+
+      <!-- Facility Roster Overview Stat Badges -->
+      <div class="compliance-stats" style="margin-top:20px; grid-template-columns: repeat(4, 1fr);">
+        <div class="stat-box">
+          <span class="stat-num" id="mgrTotalPatientCount" style="color: var(--accent-blue);">3</span>
+          <span class="stat-label">Total Patients Enrolled</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num" id="mgrTotalMedsCount" style="color: var(--accent-teal);">7</span>
+          <span class="stat-label">Total Medicines Monitored</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num" id="mgrAvgAdherence" style="color: var(--success-green);">92%</span>
+          <span class="stat-label">Facility Avg Adherence</span>
+        </div>
+        <div class="stat-box" style="border-color:#FCD34D; background:#FEF3C7;">
+          <span class="stat-num" id="mgrSyncDevicesCount" style="color:#B45309;">Active</span>
+          <span class="stat-label">Cross-Device Sync Engine</span>
+        </div>
+      </div>
+
+      <div class="grid-card" style="margin-top:20px;">
+        <div class="card-header">
+          <h3>📋 Complete Resident Patient List</h3>
+          <span class="badge badge-success">Showing All Registered Patients</span>
+        </div>
+
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Patient Name & Care Category</th>
+              <th>Monitored Medicines</th>
+              <th>Calculated Adherence</th>
+              <th>Assigned Doctor</th>
+              <th>Assigned Nurse / Caregiver</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="managerRosterTableBody">
+            <!-- Dynamic All Patient Rows rendered here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ADD NEW PATIENT ACCOUNT MODAL -->
+  <div class="modal-overlay" id="addPatientModal">
+    <div class="form-card">
+      <h3>➕ Register New Patient Profile</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Add a new patient profile to manage their unique medication schedule, doctor contacts, and adherence metrics.</p>
+
+      <form id="addPatientForm" onsubmit="saveNewPatient(event)">
+        <div class="form-group">
+          <label>Full Patient Name *</label>
+          <input type="text" id="newPatientName" required placeholder="e.g. Arthur Pendelton or Grace Hopper">
+        </div>
+        <div class="form-group">
+          <label>Care Condition / Category *</label>
+          <input type="text" id="newPatientCategory" required placeholder="e.g. Diabetes Care, Memory Care, Post-Op Recovery">
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Assigned Doctor Name</label>
+            <input type="text" id="newPatientDocName" value="Dr. Michael Chang" required>
+          </div>
+          <div class="form-group">
+            <label>Doctor Phone</label>
+            <input type="text" id="newPatientDocPhone" value="+1 (555) 999-1122" required>
+          </div>
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Assigned Caregiver Name</label>
+            <input type="text" id="newPatientCgName" value="Sarah Adams (Nurse)" required>
+          </div>
+          <div class="form-group">
+            <label>Caregiver Phone</label>
+            <input type="text" id="newPatientCgPhone" value="+1 (555) 333-4455" required>
+          </div>
+        </div>
+
+        <div class="form-actions" style="margin-top:20px;">
+          <button type="button" class="btn btn-secondary" onclick="closeAddPatientModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-lg">🚀 Create & Launch Patient Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- STARTING LOGIN MODAL -->
+  <div class="modal-overlay active" id="loginModal">
+    <div class="form-card login-card">
+      <div class="login-header">
+        <div class="login-logo-badge">🔑 Firebase Multi-User Authentication</div>
+        <h2>CarePill User Login</h2>
+        <p>Sign in to launch your role-specific dashboard</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleUserLogin(event)">
+        <div class="form-group">
+          <label>Select Patient Account to Access *</label>
+          <select id="loginPatientSelect" class="patient-select-dropdown" style="margin-bottom:12px;">
+            <option value="pat_1">👵 Eleanor Vance (Cardiology Care)</option>
+            <option value="pat_2">👴 Robert Chen (Diabetes Care)</option>
+            <option value="pat_3">👵 Margaret Taylor (Hypertension Care)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Email or Phone Number *</label>
+          <input type="text" id="loginUsername" required value="eleanor@patient.com" placeholder="e.g. eleanor@patient.com or +15552345678">
+        </div>
+
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" id="loginPassword" required value="••••••••" placeholder="Enter password">
+        </div>
+
+        <div class="form-group">
+          <label>Select Your Login Role *</label>
+          <select id="loginRole" required style="font-weight:700; color:var(--primary-navy);">
+            <option value="patient">👴 Elderly Patient</option>
+            <option value="caregiver">👩‍⚕️ On-Duty Caregiver</option>
+            <option value="family">👨‍👩‍👧 Family Member</option>
+            <option value="manager">🏥 Care Manager (Facility Admin)</option>
+          </select>
+        </div>
+
+        <div class="quick-demo-logins">
+          <span style="font-size:11px; font-weight:700; color:var(--text-muted);">Quick Role Fill:</span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setDemoLogin('patient')">👴 Patient</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setDemoLogin('caregiver')">👩‍⚕️ Caregiver</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setDemoLogin('family')">👨‍👩‍👧 Family</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setDemoLogin('manager')">🏥 Manager</button>
+        </div>
+
+        <div class="form-actions" style="margin-top:20px;">
+          <button type="submit" class="btn btn-primary btn-block btn-lg">🔒 Log In & Launch Dashboard</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- AUTOMATIC ALARM MODAL -->
+  <div class="modal-overlay" id="alarmModal">
+    <div class="alarm-card">
+      <div class="alarm-header">
+        <span class="alarm-badge">⏰ AUTOMATIC MEDICATION ALARM</span>
+        <h2 id="alarmMedName">Lisinopril</h2>
+        <p class="alarm-dosage" id="alarmDosage">10mg • 1 Pill (Take after food)</p>
+      </div>
+
+      <div class="alarm-time-display" id="alarmClock">08:00 AM</div>
+      <p style="font-size:12px; color:var(--rose-red); font-weight:700; margin-bottom:16px;">🔊 Alarm Chime Sounding! Real-time notification dispatched to caregivers.</p>
+
+      <div class="alarm-actions">
+        <button class="action-btn btn-taken" onclick="respondToAlarm('TAKEN')">
+          <span class="icon">✅</span>
+          <span>TAKEN (Eaten)</span>
+        </button>
+        <button class="action-btn btn-snooze" onclick="respondToAlarm('SNOOZE')">
+          <span class="icon">⏰</span>
+          <span>SNOOZE 5M</span>
+        </button>
+        <button class="action-btn btn-skip" onclick="respondToAlarm('SKIPPED')">
+          <span class="icon">❌</span>
+          <span>SKIP (Not Eaten)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD MEDICINE MODAL -->
+  <div class="modal-overlay" id="addMedModal">
+    <div class="form-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="color:var(--primary-navy); font-size:20px;">➕ Add New Medicine to Schedule</h3>
+        <span style="font-size:12px; background:#E0F2FE; color:var(--accent-blue); padding:4px 10px; border-radius:12px; font-weight:700;">🔒 Password Protected</span>
+      </div>
+
+      <form id="medForm" onsubmit="saveNewMedicine(event)">
+        <div class="form-group">
+          <label>Medicine Name *</label>
+          <input type="text" id="inputMedName" required placeholder="e.g. Aspirin, Metformin, Lisinopril">
+        </div>
+
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Dosage *</label>
+            <input type="text" id="inputDosage" required placeholder="e.g. 100mg, 1 Tablet, 5ml">
+          </div>
+          <div class="form-group">
+            <label>Form *</label>
+            <select id="inputForm">
+              <option value="Pill 💊">Pill 💊</option>
+              <option value="Syrup 🧪">Syrup 🧪</option>
+              <option value="Injection 💉">Injection 💉</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Schedule Time *</label>
+            <input type="time" id="inputTime" required value="09:00">
+          </div>
+          <div class="form-group">
+            <label>Pill Stock Count *</label>
+            <input type="number" id="inputStock" required value="30">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Special Instructions</label>
+          <input type="text" id="inputInstructions" placeholder="e.g. Take after breakfast with water">
+        </div>
+
+        <div class="form-group" style="background:#F8FAFC; border:1px solid #BFDBFE; padding:14px; border-radius:12px; margin-top:10px;">
+          <label style="color:var(--accent-blue); font-weight:800;">🔒 Security Password / PIN *</label>
+          <input type="password" id="inputPassword" maxlength="4" required placeholder="Enter Security Password (Default: 1234)" style="font-size:16px; letter-spacing:4px;">
+          <div id="addMedErrorMsg" style="color:var(--rose-red); font-size:12px; font-weight:700; display:none; margin-top:4px;">❌ Incorrect Password. Enter 1234 to unlock.</div>
+        </div>
+
+        <div class="form-actions" style="margin-top:20px;">
+          <button type="button" class="btn btn-secondary" onclick="closeAddMedicineModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-lg">✅ Save Medicine to Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EDIT CONTACTS MODAL -->
+  <div class="modal-overlay" id="editContactsModal">
+    <div class="form-card">
+      <h3>✏️ Edit Caregiver & Doctor Contacts</h3>
+      <form id="contactsForm" onsubmit="saveContacts(event)">
+        <h4 style="color:var(--accent-blue); margin-top:12px;">Doctor Information</h4>
+        <div class="form-group">
+          <label>Doctor Name</label>
+          <input type="text" id="editDocName" required>
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="text" id="editDocPhone" required>
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="editDocEmail" required>
+          </div>
+        </div>
+
+        <h4 style="color:var(--accent-teal); margin-top:16px;">Caregiver Information</h4>
+        <div class="form-group">
+          <label>Caregiver Name</label>
+          <input type="text" id="editCgName" required>
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="text" id="editCgPhone" required>
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="editCgEmail" required>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditContactsModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Encrypted Contacts</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SEND DIRECT MESSAGE MODAL -->
+  <div class="modal-overlay" id="sendMessageModal">
+    <div class="form-card">
+      <h3>💬 Send Direct SMS / Email Alert</h3>
+      <form id="msgForm" onsubmit="dispatchMessage(event)">
+        <div class="form-group">
+          <label>Recipient</label>
+          <select id="msgRecipient">
+            <option value="Doctor">👨‍⚕️ Doctor</option>
+            <option value="Caregiver">👩‍⚕️ Caregiver</option>
+            <option value="Both">📱 Both Doctor & Caregiver</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Delivery Channel</label>
+          <select id="msgChannel">
+            <option value="SMS & Email">📲 Instant SMS & Email (Twilio + SendGrid)</option>
+            <option value="SMS Only">💬 SMS Text Message Only</option>
+            <option value="Email Only">✉️ Email Alert Only</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Message Content</label>
+          <textarea id="msgBody" rows="3" required style="width:100%; padding:10px; border:1px solid var(--card-border); border-radius:10px; outline:none;" placeholder="Type your message or select a template below..."></textarea>
+        </div>
+
+        <div class="quick-templates">
+          <span style="font-size:11px; font-weight:700; color:var(--text-muted);">Templates:</span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="applyMsgTemplate('MISSED')">⚠️ Missed Dose Alert</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="applyMsgTemplate('REFILL')">📦 Refill Request</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="applyMsgTemplate('UPDATE')">📋 General Health Update</button>
+        </div>
+
+        <div class="form-actions" style="margin-top:20px;">
+          <button type="button" class="btn btn-secondary" onclick="closeSendMessageModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">🚀 Send Message Now</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SOS EMERGENCY MODAL -->
+  <div class="modal-overlay" id="sosModal">
+    <div class="sos-card">
+      <div class="sos-header">
+        <h2>🚨 EMERGENCY SOS ACTIVATED</h2>
+        <p>Broadcasting GPS location and SMS messages to Doctor & Caregiver...</p>
+      </div>
+      <div class="sos-details">
+        <p><b>Patient:</b> <span id="sosPatientName">Eleanor Vance</span></p>
+        <p><b>Location:</b> 742 Evergreen Terrace, Sector 4</p>
+        <p><b>SMS & Email Sent to:</b> <span id="sosContacts">Doctor & Caregiver</span></p>
+      </div>
+      <button class="btn btn-secondary" style="margin-top:20px;" onclick="closeSOSModal()">Cancel Emergency Broadcast</button>
+    </div>
+  </div>
+
+  <!-- SECURITY PIN LOCK MODAL -->
+  <div class="modal-overlay" id="pinModal">
+    <div class="pin-card">
+      <div class="pin-icon">🔒</div>
+      <h3>Security Password Required</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Enter 4-Digit Password/PIN to unlock protected action (Default: <b>1234</b>)</p>
+
+      <div class="pin-input-group">
+        <input type="password" id="pinInput" maxlength="4" placeholder="••••">
+      </div>
+      <div class="pin-error-msg" id="pinErrorMsg">Incorrect Password. Try again.</div>
+
+      <div class="pin-actions">
+        <button class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="verifyPin()">Verify Password & Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

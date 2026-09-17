@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for role-based authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isPatient(patientId) {
+      return isAuthenticated() && request.auth.uid == patientId;
+    }
+
+    function isCaregiverOrDoctor() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'caregiver' ||
+        request.auth.token.role == 'doctor' ||
+        request.auth.token.role == 'manager'
+      );
+    }
+
+    // Patient Documents Rule
+    match /patients/{patientId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isCaregiverOrDoctor();
+
+      // Medicine Schedule Subcollection
+      match /medicines/{medicineId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated();
+        allow delete: if isCaregiverOrDoctor();
+      }
+
+      // Dose Log Audit Subcollection
+      match /doseLogs/{logId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated();
+      }
+
+      // Activity Feed Logs
+      match /activityLogs/{activityId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+      }
+    }
+
+    // Facility Roster & Caregiver Assignments
+    match /facilities/{facilityId} {
+      allow read, write: if isCaregiverOrDoctor();
+    }
+  }
+}
